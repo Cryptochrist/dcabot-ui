@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DCA Service — Waves Blockchain</title>
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:        #0d1117;
+            --surface:   #161b22;
+            --surface2:  #1c2230;
+            --border:    #30363d;
+            --text:      #c9d1d9;
+            --text-dim:  #6e7681;
+            --accent:    #4493f8;
+            --accent-dim:#1f3a6e;
+            --green:     #3fb950;
+            --green-dim: #1a3d22;
+            --yellow:    #d29922;
+            --yellow-dim:#3b2d10;
+            --red:       #f85149;
+            --red-dim:   #3d1a1a;
+            --radius:    8px;
+            --shadow:    0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* ── Nav ── */
+        nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 17px;
+            color: #e6edf3;
+            text-decoration: none;
+        }
+        .nav-brand-icon {
+            width: 30px;
+            height: 30px;
+            background: var(--accent);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+        }
+        .nav-badge {
+            font-size: 11px;
+            color: var(--text-dim);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        #walletChip {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-dim);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            padding: 5px 12px;
+            border-radius: 20px;
+        }
+        #walletChip .dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+
+        /* ── Layout ── */
+        main {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* ── Hero ── */
+        .hero { text-align: center; padding: 48px 0 36px; }
+        .hero h1 {
+            font-size: 32px; font-weight: 700; color: #e6edf3;
+            margin-bottom: 10px; letter-spacing: -0.5px;
+        }
+        .hero p { color: var(--text-dim); font-size: 16px; max-width: 500px; margin: 0 auto 28px; }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 8px 18px; border-radius: var(--radius); border: none;
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: opacity .15s, transform .1s; text-decoration: none;
+        }
+        .btn:hover  { opacity: .85; }
+        .btn:active { transform: scale(.97); }
+        .btn:disabled { opacity: .45; cursor: not-allowed; }
+        .btn-primary { background: var(--accent);     color: #fff; }
+        .btn-ghost   { background: transparent; color: var(--text); border: 1px solid var(--border); }
+        .btn-danger  { background: var(--red-dim);    color: var(--red);    border: 1px solid #5c1a1a; }
+        .btn-warn    { background: var(--yellow-dim); color: var(--yellow); border: 1px solid #5c4010; }
+        .btn-success { background: var(--green-dim);  color: var(--green);  border: 1px solid #1a4d22; }
+        .btn-sm      { padding: 5px 12px; font-size: 13px; }
+        .btn-link    { background: none; border: none; color: var(--text-dim); font-size: 13px; padding: 4px 8px; }
+        .btn-link:hover { color: var(--text); }
+
+        /* ── Card ── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+        .card-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .card-header h2 { font-size: 15px; font-weight: 600; color: #e6edf3; }
+        .card-body { padding: 24px; }
+
+        /* ── Connect card ── */
+        #connectCard { text-align: center; padding: 40px; }
+        #connectCard p { color: var(--text-dim); font-size: 14px; margin-top: 12px; }
+
+        /* ── Asset dropdown ── */
+        .asset-select-wrap {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #assetSelect {
+            flex: 1;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            padding: 10px 14px;
+            font-size: 14px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236e7681' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 36px;
+            transition: border-color .15s;
+        }
+        #assetSelect:hover  { border-color: #444d56; }
+        #assetSelect:focus  { outline: none; border-color: var(--accent); }
+        #assetSelect option { background: #1c2230; }
+
+        /* ── Config panel ── */
+        .config-panel {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            animation: fadeIn .2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+        .config-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 18px;
+        }
+        .config-from {
+            display: flex; align-items: baseline; gap: 10px;
+        }
+        .config-from-label { font-size: 13px; color: var(--text-dim); }
+        .config-from-name  { font-size: 17px; font-weight: 700; color: #e6edf3; }
+        .config-from-avail { font-size: 12px; color: var(--text-dim); }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .config-grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .field { display: flex; flex-direction: column; gap: 6px; }
+        .field label {
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: .5px; color: var(--text-dim);
+        }
+        .field select,
+        .field input {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            padding: 9px 12px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color .15s;
+            width: 100%;
+        }
+        .field select:focus,
+        .field input:focus { border-color: var(--accent); }
+        .field .hint { font-size: 11px; color: var(--text-dim); }
+
+        .input-with-btn { display: flex; gap: 8px; }
+        .input-with-btn input { flex: 1; }
+
+        .est-row {
+            display: flex; align-items: center; justify-content: space-between;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 11px 14px;
+            margin-bottom: 10px; font-size: 14px;
+        }
+        .est-row span { color: var(--text-dim); font-size: 13px; }
+        .est-row .est-value { font-weight: 600; color: var(--green); }
+
+        .cost-row {
+            display: flex; align-items: center; justify-content: space-between;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 11px 14px;
+            margin-bottom: 16px;
+        }
+        .cost-row span { font-size: 13px; color: var(--text-dim); }
+        .cost-row strong { color: #e6edf3; }
+
+        .config-actions { display: flex; justify-content: flex-end; }
+
+        /* ── Sessions ── */
+        .session-item {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--surface2);
+            padding: 18px 20px;
+            margin-bottom: 12px;
+            transition: border-color .15s;
+        }
+        .session-item:hover  { border-color: #444d56; }
+        .session-item.paused { border-left: 3px solid var(--yellow); }
+        .session-item.stopped { opacity: .55; }
+
+        .session-top {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .session-pair { display: flex; align-items: center; gap: 10px; }
+        .session-pair h3 { font-size: 15px; font-weight: 600; color: #e6edf3; }
+
+        .pill {
+            font-size: 11px; font-weight: 600; padding: 2px 9px;
+            border-radius: 20px; text-transform: uppercase; letter-spacing: .4px;
+        }
+        .pill-active  { background: var(--green-dim);  color: var(--green); }
+        .pill-paused  { background: var(--yellow-dim); color: var(--yellow); }
+        .pill-stopped { background: #1c2230; color: var(--text-dim); }
+
+        .session-actions { display: flex; gap: 8px; }
+
+        .session-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .stat { display: flex; flex-direction: column; gap: 2px; }
+        .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .4px; }
+        .stat-value { font-size: 14px; color: #e6edf3; font-weight: 500; }
+
+        .progress-wrap { display: flex; flex-direction: column; gap: 5px; }
+        .progress-bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
+        .progress-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); }
+        .session-id {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 11px; color: var(--text-dim);
+            font-family: 'SF Mono','Consolas',monospace; margin-top: 10px;
+        }
+        .copy-id-btn {
+            font-size: 11px; color: var(--accent); background: none; border: none;
+            cursor: pointer; padding: 0; font-family: inherit; flex-shrink: 0;
+        }
+        .copy-id-btn:hover { text-decoration: underline; }
+
+        /* ── Toast ── */
+        #toast {
+            position: fixed; bottom: 28px; right: 28px; max-width: 380px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); box-shadow: var(--shadow);
+            padding: 14px 18px; font-size: 13px; display: none; z-index: 200;
+            animation: fadeIn .2s ease;
+        }
+        .toast-success { border-left: 3px solid var(--green); }
+        .toast-info    { border-left: 3px solid var(--accent); }
+        .toast-danger  { border-left: 3px solid var(--red); }
+
+        .hidden { display: none !important; }
+        code {
+            font-family: 'SF Mono','Consolas',monospace; font-size: 12px;
+            background: var(--surface2); border: 1px solid var(--border);
+            padding: 1px 6px; border-radius: 4px; color: var(--accent);
+        }
+        .empty-state { text-align: center; padding: 36px; color: var(--text-dim); font-size: 14px; }
+
+        @media (max-width: 700px) {
+            .session-stats  { grid-template-columns: repeat(2, 1fr); }
+            .config-grid-3  { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 560px) {
+            .config-grid, .config-grid-3, .session-stats { grid-template-columns: 1fr; }
+            .session-top { flex-direction: column; align-items: flex-start; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a class="nav-brand" href="#">
+        <span class="nav-brand-icon">↻</span>
+        DCA Service
+        <span class="nav-badge">Waves</span>
+    </a>
+    <div id="walletChip">
+        <span class="dot"></span>
+        <span id="walletAddressShort"></span>
+    </div>
+</nav>
+
+<main>
+    <!-- Hero (pre-connect) -->
+    <div class="hero" id="heroSection">
+        <h1>Dollar Cost Average on Waves</h1>
+        <p>Automate recurring token swaps via PuzzleSwap. Non-custodial — your keys, your funds.</p>
+    </div>
+
+    <!-- Connect (pre-connect) -->
+    <div class="card" id="connectCard">
+        <button class="btn btn-primary" id="connectBtn" style="font-size:15px;padding:12px 28px;">
+            Connect Waves Keeper
+        </button>
+        <p>Waves Keeper browser extension required</p>
+    </div>
+
+    <!-- Wallet + inline config (post-connect) -->
+    <div class="card hidden" id="walletCard" style="margin-top:24px;">
+        <div class="card-header">
+            <h2>Wallet <span id="walletHint" style="font-size:12px;font-weight:400;color:var(--text-dim);margin-left:8px;">— select a token to start a DCA</span></h2>
+            <button class="btn btn-ghost btn-sm" id="refreshBalancesBtn">Refresh</button>
+        </div>
+        <div class="card-body">
+            <div class="asset-select-wrap">
+                <select id="assetSelect">
+                    <option value="">Loading wallet…</option>
+                </select>
+            </div>
+
+            <!-- Config panel: shown when a token chip is clicked -->
+            <div class="config-panel hidden" id="configPanel">
+                <div class="config-header">
+                    <div class="config-from">
+                        <span class="config-from-label">Swapping</span>
+                        <span class="config-from-name" id="configFromName">—</span>
+                        <span class="config-from-avail" id="configFromAvail"></span>
+                    </div>
+                    <button class="btn btn-link" id="clearAssetBtn">✕ Clear</button>
+                </div>
+
+                <form id="startForm">
+                    <div class="config-grid" style="margin-bottom:14px;">
+                        <div class="field">
+                            <label>Amount per Swap</label>
+                            <div class="input-with-btn">
+                                <input type="number" id="amount" step="0.00000001" min="0.00000001" value="1" required>
+                                <button type="button" class="btn btn-ghost btn-sm" id="maxBtn">MAX</button>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label>Into</label>
+                            <select id="toAsset">
+                                <option value="WAVES">WAVES</option>
+                                <option value="DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p">XTN</option>
+                                <option value="AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ">ROME</option>
+                                <option value="7scqyYoVsNrpWbTAc78eRqNVcYLxMPzZs8EQfX7ruJAg">L2MP</option>
+                                <option value="Atqv59EYzjFGuitKVnMRk6H8FukjoV3ktPorbEys25on">WX</option>
+                                <option value="6nSpVyNH7yM69eg446wrQR94ipbbcmZMU1ENPwanC97g">NSBT</option>
+                                <option value="DSbbhLsSTeDg5Lsiufk2Aneh3DjVqJuPr2M9uU1gwy5p">VIRES</option>
+                                <option value="8DLiYZjo3UUaRBTHU7Ayoqg4ihwb6YH1AfXrrhdjQ7K1">BUSD-WXG</option>
+                                <option value="34N9YcEETLWn93qYQ64EsP1x89tSruJU44RrEMSXXEPJ" selected>USDT-WXG</option>
+                                <option value="B45iYkZVC9cudR2yxrsJnrM75StiTrwphbfQ7xkyisip">USDTu</option>
+                                <option value="6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ">USDC-WXG</option>
+                                <option value="474jTeYx2r2Va35794tCScAXWJG9hU2HcgxzMowaZUnu">ETH-WXG</option>
+                                <option value="8LQW8f7P5d5PZM7GtZEBgaqRPGSzS3DfPuiXrURJ4AJS">BTC-WXG</option>
+                                <option value="8zUYbdB8Q6mDhpcXYv52ji8ycfj4SDX4gJXS7YY3dA4R">DAI-WXG</option>
+                                <option value="3KhNcHo4We1G5EWps7b1e5DTdLgWDzctc8S6ynu37KAb">CRV-WXG</option>
+                                <option value="Ehie5xYpeN8op1Cctc6aGUrqx8jq3jtf1DSjXDbfm7aT">SWOP</option>
+                                <option value="4LHHvYGNKJUg5hj65aGD5vgScvCBmLpdRFtjokvCjSL8">WEST</option>
+                                <option value="C1iWsKGqLwjHUndiQ7iXpdmPum9PeCDFfyXBdJJosDRS">EGG</option>
+                                <option value="2Fge5HEBRD3XTeg7Xg3FW5yiB9HVJFQtMXiWMQo72Up6">WBTC-PPT</option>
+                                <option value="EW1uGLVo21Wd9i2Rhq8o4VKDTCQTGCGXE8DqayHGrLg8">BTCB-BSC-PPT</option>
+                                <option value="3UHgFQECoynwC3iunYBnbhzmcCzC5gVnVZMv8Yw1bneK">EAST</option>
+                                <option value="2thsACuHmzDMuNezPM32wg9a3BwUzBWDeSKakgz3cw21">POWER</option>
+                                <option value="8KEtor9aSsSj38MknyAE7k1uRThHY9prAXgiE4D7WpyL">VVXTNLP</option>
+                                <option value="At8D6NFFpheCbvKVnjVoeLL84Eo8NZn6ovManxfLaFWL">SURF</option>
+                                <option value="HEB8Qaw9xrWpWs8tHsiATYGBWDBtP2S7kcPALrMu43AS">PUZZLE</option>
+                                <option value="8t4DPWTwPzpatHA9AkTxWAB47THnYzBsDnoY7fQqbG91">TSN</option>
+                                <option value="bPWkA3MNyEr1TuDchWgdpqJZhGhfPXj7dJdr3qiW2kD">TN</option>
+                                <option value="Ajso6nTTjptu2UHLx6hfSXVtHFtRBJCkKYd5SAyj7zf5">PLUTO</option>
+                                <option value="GAzAEjApmjMYZKPzri2g2VUXNvTiQGF7KDYZFFsP3AEq">PETE</option>
+                                <option value="9sQutD5HnRvjM1uui5cVC4w9xkMPAfYEV8ymug3Mon2Y">SIGN</option>
+                                <option value="D4TPjtzpsDEJFS1pUAkvh1tJJJMNWGcSrds9sveBoQka">RACE</option>
+                                <option value="7LMV3s1J4dKpMQZqge5sKYoFkZRLojnnU49aerqos4yg">ENNO</option>
+                                <option value="DHgwrRvVyqJsepd32YbBqUeDH4GJ1N984X8QoekjgH8J">WCT</option>
+                                <option value="HGgabTqUS8WtVFUJzfmrTDMgEccJuZLBPhFgQFxvnsoW">USDC-ERC20-PPT</option>
+                                <option value="3VuV5WTmDz47Dmdn3QpcYjzbSdipjQE4JMdNe1xZpX13">ETH-Ethereum-PPT</option>
+                                <option value="9wc3LXNA4TEBsXyKtoLE9mrbDD7WMHXvXrCjZvabLAsi">USDT-ERC20-PPT</option>
+                                <option value="A81p1LTRyoq2rDR2TNxB2dWYxsiNwCSSi8sXef2SEkwb">USDT-BSC-PPT</option>
+                                <option value="YiNbofFzC17jEHHCMwrRcpy9MrrjabMMLZxg8g5xmf7">sWAVES</option>
+                                <option value="FmsB2B21fVVetWvZm7Q48cC2Bvs2hEZtft49TBn3guV1">CRV-ERC20-PPT</option>
+                                <option value="6jsmMsMfpJWqxSGyxrkTvH5zZyaQd2P6VEY9fBz2T8FB">SPICE</option>
+                                <option value="6bZbRmou7M7wXBunMXQnZ4Rm66HxZF3KfMEiFwk3wmnA">PZ-5POOL</option>
+                                <option value="XjdJKWtPYCz585QB7LnxDP76UGRukazedDubUx9DHQH">PZ-WEB-LP</option>
+                                <option value="59muEkmqg3qLUkrwSD7L7ZYhVuoDuqkeono4FvDFHv84">ARKIMALS-EGG</option>
+                                <option value="GjwAHMjqWzYR4LgoNy91CxUKAGJN79h2hseZoae4nU8t">UNIT0</option>
+                                <option value="J4iWJS2kGmAqLC4dYFuHvmqXK1E6rBJaRTA6nd1VmFkj">FOMO</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="config-grid-3">
+                        <div class="field">
+                            <label>Blocks Between Swaps</label>
+                            <input type="number" id="blocks" min="1" value="4" required>
+                            <span class="hint">~1 min per block</span>
+                        </div>
+                        <div class="field">
+                            <label>Number of Swaps</label>
+                            <input type="number" id="swaps" min="1" value="10" required>
+                        </div>
+                        <div class="field">
+                            <label>Min Output (optional)</label>
+                            <input type="number" id="minOut" step="0.00000001" min="0" placeholder="0 = any">
+                            <span class="hint">Slippage protection</span>
+                        </div>
+                    </div>
+
+                    <div class="est-row">
+                        <span>Est. output per swap</span>
+                        <span class="est-value" id="estimatedOut">—</span>
+                    </div>
+
+                    <div class="cost-row">
+                        <span>Total cost</span>
+                        <strong><span id="totalCost">0</span> <span id="totalAsset">—</span></strong>
+                    </div>
+
+                    <div class="config-actions">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            Start DCA Session
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sessions -->
+    <div class="card hidden" id="sessionsCard" style="margin-top:24px;">
+        <div class="card-header">
+            <h2>Your Sessions</h2>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-ghost btn-sm" id="toggleStoppedBtn">Show completed</button>
+                <button class="btn btn-ghost btn-sm" id="refreshBtn">Refresh</button>
+            </div>
+        </div>
+        <div class="card-body" id="sessionsList">
+            <div class="empty-state">No sessions found.</div>
+        </div>
+    </div>
+</main>
+
+<div id="toast"></div>
+
+<script src="https://waveskeeper.github.io/provider/latest/providerForMessenger.js"></script>
+<script src="dca-sdk.js"></script>
+
+<script>
+    const CONTRACT_ADDRESS = '3PAmHou5p92uWnxRXRKo34czWcPhM9J6h9s';
+    const NETWORK = 'mainnet';
+
+    const dca = new DCAService(CONTRACT_ADDRESS, NETWORK);
+    let userAddress   = null;
+    let selectedAsset    = null; // { id, name, amount, decimals }
+    let routeValid       = false;
+    let assetNameMap     = {};   // assetId → display name
+    let showStopped      = false;
+    let autoRefreshTimer = null;
+
+    // DOM refs
+    const connectBtn         = document.getElementById('connectBtn');
+    const walletChip         = document.getElementById('walletChip');
+    const walletAddressShort = document.getElementById('walletAddressShort');
+    const heroSection        = document.getElementById('heroSection');
+    const connectCard        = document.getElementById('connectCard');
+    const walletCard         = document.getElementById('walletCard');
+    const walletHint         = document.getElementById('walletHint');
+    const sessionsCard       = document.getElementById('sessionsCard');
+    const configPanel        = document.getElementById('configPanel');
+    const startForm          = document.getElementById('startForm');
+    const refreshBtn         = document.getElementById('refreshBtn');
+    const refreshBalancesBtn = document.getElementById('refreshBalancesBtn');
+    const sessionsList       = document.getElementById('sessionsList');
+    const submitBtn          = document.getElementById('submitBtn');
+
+    // Pre-populate name map from the toAsset dropdown (static list)
+    document.querySelectorAll('#toAsset option').forEach(opt => {
+        if (opt.value) assetNameMap[opt.value] = opt.textContent;
+    });
+
+    // ── Connect ───────────────────────────────────────────────
+    connectBtn.addEventListener('click', async () => {
+        try {
+            showToast('Connecting to Waves Keeper…', 'info');
+            connectBtn.disabled = true;
+            connectBtn.textContent = 'Connecting…';
+
+            const wallet = await dca.checkWavesKeeper();
+            userAddress = wallet.address;
+
+            walletAddressShort.textContent = userAddress.slice(0,6) + '…' + userAddress.slice(-4);
+            walletChip.style.display = 'flex';
+            connectCard.classList.add('hidden');
+            heroSection.classList.add('hidden');
+            walletCard.classList.remove('hidden');
+            sessionsCard.classList.remove('hidden');
+
+            showToast('Wallet connected', 'success');
+            loadWalletBalances();
+            loadUserSessions();
+
+            if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+            autoRefreshTimer = setInterval(loadUserSessions, 60000);
+
+        } catch (error) {
+            showToast(error.message, 'danger');
+            connectBtn.disabled = false;
+            connectBtn.textContent = 'Connect Waves Keeper';
+        }
+    });
+
+    // ── Wallet balances ───────────────────────────────────────
+    refreshBalancesBtn.addEventListener('click', loadWalletBalances);
+
+    // Wallet asset items stored for lookup by value
+    let walletItems = [];
+
+    async function loadWalletBalances() {
+        const sel = document.getElementById('assetSelect');
+        sel.innerHTML = '<option value="">Loading wallet…</option>';
+        clearAsset();
+
+        try {
+            const [wavesResp, assetsResp] = await Promise.all([
+                fetch(`${dca.nodeUrl}/addresses/balance/${userAddress}`),
+                fetch(`${dca.nodeUrl}/assets/balance/${userAddress}`)
+            ]);
+            const wavesData  = await wavesResp.json();
+            const assetsData = await assetsResp.json();
+
+            const items = [{
+                id: 'WAVES', name: 'WAVES',
+                amount: wavesData.balance / 1e8,
+                decimals: 8, isWaves: true
+            }];
+
+            for (const asset of (assetsData.balances || [])) {
+                if (!asset.balance) continue;
+                const decimals = asset.issueTransaction?.decimals ?? 8;
+                const name = (asset.issueTransaction?.name || asset.assetId.slice(0,8)).trim();
+                items.push({
+                    id: asset.assetId, name,
+                    amount: asset.balance / Math.pow(10, decimals),
+                    decimals
+                });
+            }
+
+            items.sort((a, b) => {
+                if (a.isWaves) return -1;
+                if (b.isWaves) return 1;
+                return b.amount - a.amount;
+            });
+
+            // Update name map with wallet tokens (wallet names override dropdown names)
+            items.forEach(item => { assetNameMap[item.id] = item.name; });
+            walletItems = items;
+
+            sel.innerHTML = '<option value="">— Select a token to DCA —</option>' +
+                items.map(item => {
+                    const display = item.amount < 0.0001
+                        ? item.amount.toExponential(2)
+                        : item.amount.toLocaleString(undefined, { maximumFractionDigits: 6 });
+                    return `<option value="${item.id}"
+                        data-name="${item.name}"
+                        data-amount="${item.amount}"
+                        data-decimals="${item.decimals}">${item.name} — ${display} available</option>`;
+                }).join('');
+
+        } catch (e) {
+            sel.innerHTML = `<option value="">Failed to load wallet</option>`;
+            showToast('Failed to load wallet: ' + e.message, 'error');
+        }
+    }
+
+    // ── Asset selection ───────────────────────────────────────
+    document.getElementById('assetSelect').addEventListener('change', function() {
+        const opt = this.options[this.selectedIndex];
+        if (!this.value) { clearAsset(); return; }
+        selectAsset(this.value, opt.dataset.name, parseFloat(opt.dataset.amount), parseInt(opt.dataset.decimals));
+    });
+
+    function selectAsset(id, name, amount, decimals) {
+        selectedAsset = { id, name, amount, decimals };
+
+        document.getElementById('configFromName').textContent  = name;
+        document.getElementById('configFromAvail').textContent =
+            amount.toLocaleString(undefined, { maximumFractionDigits: 6 }) + ' available';
+        document.getElementById('totalAsset').textContent = name;
+        walletHint.classList.add('hidden');
+
+        // Hide the fromAsset in toAsset dropdown
+        const toAssetEl = document.getElementById('toAsset');
+        Array.from(toAssetEl.options).forEach(opt => {
+            opt.hidden = opt.value === id;
+        });
+        if (toAssetEl.value === id) {
+            const first = Array.from(toAssetEl.options).find(o => !o.hidden);
+            if (first) toAssetEl.value = first.value;
+        }
+
+        configPanel.classList.remove('hidden');
+        configPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        updateTotalCost();
+        updateEstimatedOutput();
+    }
+
+    document.getElementById('clearAssetBtn').addEventListener('click', clearAsset);
+
+    function clearAsset() {
+        selectedAsset = null;
+        routeValid = false;
+        const sel = document.getElementById('assetSelect');
+        if (sel) sel.value = '';
+        // Restore all toAsset options
+        Array.from(document.getElementById('toAsset').options).forEach(opt => { opt.hidden = false; });
+        configPanel.classList.add('hidden');
+        walletHint.classList.remove('hidden');
+    }
+
+    // ── MAX button ────────────────────────────────────────────
+    document.getElementById('maxBtn').addEventListener('click', () => {
+        if (!selectedAsset) return;
+        const swaps = parseInt(document.getElementById('swaps').value) || 1;
+        // Divide available balance evenly across swaps
+        const perSwap = selectedAsset.amount / swaps;
+        document.getElementById('amount').value = parseFloat(perSwap.toFixed(selectedAsset.decimals));
+        updateTotalCost();
+        updateEstimatedOutput();
+    });
+
+    // ── Live cost + estimate ──────────────────────────────────
+    ['amount', 'swaps', 'toAsset'].forEach(id => {
+        document.getElementById(id).addEventListener('input', () => {
+            updateTotalCost();
+            updateEstimatedOutput();
+        });
+    });
+
+    function updateTotalCost() {
+        const amount = parseFloat(document.getElementById('amount').value) || 0;
+        const swaps  = parseInt(document.getElementById('swaps').value) || 0;
+        document.getElementById('totalCost').textContent =
+            (amount * swaps).toLocaleString(undefined, { maximumFractionDigits: 8 });
+    }
+
+    let estDebounce;
+    async function updateEstimatedOutput() {
+        clearTimeout(estDebounce);
+        estDebounce = setTimeout(_fetchEstimate, 400);
+    }
+
+    async function _fetchEstimate() {
+        const el      = document.getElementById('estimatedOut');
+        const amount  = parseFloat(document.getElementById('amount').value) || 0;
+        const toAsset = document.getElementById('toAsset').value;
+
+        if (!selectedAsset || amount <= 0 || toAsset === selectedAsset.id) {
+            el.textContent = '—';
+            return;
+        }
+
+        el.textContent = 'Calculating…';
+        el.style.color = 'var(--text-dim)';
+        routeValid = false;
+        updateSubmitBtn();
+
+        try {
+            const toPrecision    = await dca.getAssetPrecision(toAsset);
+            const amountAfterFee = amount * (1 - 30 / 10000);
+            const amountIn = Math.floor(amountAfterFee * Math.pow(10, selectedAsset.decimals));
+
+            const resp = await fetch(
+                `https://swapapi.puzzleswap.org/aggregator/calc?token0=${selectedAsset.id}&token1=${toAsset}&amountIn=${amountIn}`,
+                { headers: { 'Referer': 'https://puzzleswap.org/', 'Origin': 'https://puzzleswap.org' } }
+            );
+            if (!resp.ok) throw new Error();
+            const data = await resp.json();
+            if (data.error) {
+                const noRoute = typeof data.error === 'string' && data.error.toLowerCase().includes('routes not found');
+                el.textContent = noRoute ? 'No route found for this pair' : 'PuzzleSwap unavailable';
+                el.style.color = 'var(--text-dim)';
+                routeValid = false;
+                updateSubmitBtn();
+                return;
+            }
+
+            const raw = data.estimatedOut || data.cleanOut || 0;
+            if (!raw) {
+                el.textContent = 'No route found for this pair';
+                el.style.color = 'var(--text-dim)';
+                routeValid = false;
+                updateSubmitBtn();
+                return;
+            }
+
+            const toName = document.querySelector(`#toAsset option[value="${toAsset}"]`)?.textContent || toAsset.slice(0,8);
+            el.textContent = (raw / Math.pow(10, toPrecision)).toFixed(6) + ' ' + toName;
+            el.style.color = 'var(--green)';
+            routeValid = true;
+            updateSubmitBtn();
+
+        } catch {
+            el.textContent = 'Unable to estimate';
+            el.style.color = 'var(--text-dim)';
+            routeValid = false;
+            updateSubmitBtn();
+        }
+    }
+
+    function updateSubmitBtn() {
+        submitBtn.disabled = !routeValid;
+        submitBtn.title = routeValid ? '' : 'No swap route available for this token pair';
+    }
+
+    // ── Start form ────────────────────────────────────────────
+    startForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!selectedAsset) { showToast('Select a token from your wallet first', 'danger'); return; }
+        if (!routeValid) { showToast('No swap route found for this token pair', 'danger'); return; }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Waiting for Keeper…';
+
+        try {
+            showToast('Creating session — approve in Waves Keeper', 'info');
+
+            const result = await dca.start({
+                fromAsset: selectedAsset.id,
+                toAsset:   document.getElementById('toAsset').value,
+                amount:    parseFloat(document.getElementById('amount').value),
+                blocks:    parseInt(document.getElementById('blocks').value),
+                swaps:     parseInt(document.getElementById('swaps').value),
+                minOut:    parseFloat(document.getElementById('minOut').value) || 0
+            });
+
+            showToast('Session started — TX: ' + result.txId.slice(0,12) + '…', 'success');
+            clearAsset();
+            startForm.reset();
+            setTimeout(loadUserSessions, 3000);
+
+        } catch (error) {
+            showToast(error.message, 'danger');
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Start DCA Session';
+    });
+
+    // ── Sessions ──────────────────────────────────────────────
+    refreshBtn.addEventListener('click', loadUserSessions);
+
+    document.getElementById('toggleStoppedBtn').addEventListener('click', () => {
+        showStopped = !showStopped;
+        document.getElementById('toggleStoppedBtn').textContent =
+            showStopped ? 'Hide completed' : 'Show completed';
+        loadUserSessions();
+    });
+
+    async function loadUserSessions() {
+        sessionsList.innerHTML = '<div class="empty-state" style="color:var(--text-dim)">Loading…</div>';
+
+        try {
+            const sessions = await dca.getUserSessions(userAddress);
+
+            sessions.sort((a, b) => new Date(b.created) - new Date(a.created));
+            const visible = showStopped ? sessions : sessions.filter(s => s.active);
+
+            if (!visible.length) {
+                const hint = sessions.some(s => !s.active) && !showStopped
+                    ? 'No active sessions. <span style="color:var(--accent);cursor:pointer;" onclick="document.getElementById(\'toggleStoppedBtn\').click()">Show completed</span>'
+                    : 'No sessions yet. Tap a token above to get started.';
+                sessionsList.innerHTML = `<div class="empty-state">${hint}</div>`;
+                return;
+            }
+
+            sessionsList.innerHTML = visible.map(renderSession).join('');
+
+            sessionsList.querySelectorAll('.stop-btn').forEach(btn =>
+                btn.addEventListener('click', () => stopSession(btn.dataset.sessionId)));
+            sessionsList.querySelectorAll('.pause-btn').forEach(btn =>
+                btn.addEventListener('click', () => pauseSession(btn.dataset.sessionId)));
+            sessionsList.querySelectorAll('.resume-btn').forEach(btn =>
+                btn.addEventListener('click', () => resumeSession(btn.dataset.sessionId)));
+            sessionsList.querySelectorAll('.copy-id-btn').forEach(btn =>
+                btn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(btn.dataset.copyId).then(() => {
+                        const orig = btn.textContent;
+                        btn.textContent = 'Copied!';
+                        setTimeout(() => { btn.textContent = orig; }, 1500);
+                    });
+                }));
+
+        } catch (error) {
+            sessionsList.innerHTML = `<div class="empty-state" style="color:var(--red)">Failed to load: ${error.message}</div>`;
+        }
+    }
+
+    function formatDuration(seconds) {
+        if (seconds < 120) return '<2m';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        if (h > 0) return `~${h}h${m > 0 ? ' ' + m + 'm' : ''}`;
+        return `~${m}m`;
+    }
+
+    function renderSession(s) {
+        const isPaused  = s.paused || false;
+        const pillClass = !s.active ? 'pill-stopped' : isPaused ? 'pill-paused' : 'pill-active';
+        const pillText  = !s.active ? 'Stopped' : isPaused ? 'Paused' : 'Active';
+        const itemClass = !s.active ? 'stopped' : isPaused ? 'paused' : '';
+        const nextText  = !s.active ? 'Session ended'
+                        : isPaused  ? 'Paused — swaps suspended'
+                        : `Next swap in ${s.blocksUntilNext} block${s.blocksUntilNext !== 1 ? 's' : ''}`;
+
+        const fromName = assetNameMap[s.fromAsset] || s.fromAsset.slice(0, 8) + '…';
+        const toName   = assetNameMap[s.toAsset]   || s.toAsset.slice(0, 8) + '…';
+
+        return `
+        <div class="session-item ${itemClass}">
+            <div class="session-top">
+                <div class="session-pair">
+                    <h3>${fromName} → ${toName}</h3>
+                    <span class="pill ${pillClass}">${pillText}</span>
+                </div>
+                ${s.active ? `
+                <div class="session-actions">
+                    ${isPaused
+                        ? `<button class="btn btn-success btn-sm resume-btn" data-session-id="${s.id}">Resume</button>`
+                        : `<button class="btn btn-warn btn-sm pause-btn" data-session-id="${s.id}">Pause</button>`
+                    }
+                    <button class="btn btn-danger btn-sm stop-btn" data-session-id="${s.id}">Stop</button>
+                </div>` : ''}
+            </div>
+
+            <div class="session-stats">
+                <div class="stat">
+                    <span class="stat-label">Per Swap</span>
+                    <span class="stat-value">${s.amountPerSwap} ${fromName}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Frequency</span>
+                    <span class="stat-value">Every ${s.blocksPerTrade} blocks</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Balance</span>
+                    <span class="stat-value">${s.balance.toFixed(6)} ${fromName}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Min Out</span>
+                    <span class="stat-value">${s.minOut > 0
+                        ? s.minOut.toFixed(6) + ' ' + toName
+                        : '<span style="color:var(--text-dim)">None</span>'}</span>
+                </div>
+            </div>
+
+            <div class="progress-wrap">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" style="width:${s.progress}%"></div>
+                </div>
+                <div class="progress-meta">
+                    <span>${s.completed} / ${s.total} swaps</span>
+                    <span>${nextText}${s.active && !isPaused && s.remaining > 0 ? ' · ' + formatDuration(s.remaining * s.blocksPerTrade * 60) + ' left' : ''}</span>
+                </div>
+            </div>
+
+            <div class="session-id">
+                <span>ID: ${s.id}</span>
+                <button class="copy-id-btn" data-copy-id="${s.id}">Copy</button>
+            </div>
+        </div>`;
+    }
+
+    // ── Actions ───────────────────────────────────────────────
+    async function stopSession(sessionId) {
+        if (!confirm('Stop this session? Remaining funds will be returned to your wallet.')) return;
+        try {
+            showToast('Stopping — approve in Waves Keeper', 'info');
+            const r = await dca.stop(sessionId);
+            showToast('Session stopped — TX: ' + r.txId.slice(0,12) + '…', 'success');
+            setTimeout(loadUserSessions, 3000);
+        } catch (e) { showToast(e.message, 'danger'); }
+    }
+
+    async function pauseSession(sessionId) {
+        try {
+            showToast('Pausing — approve in Waves Keeper', 'info');
+            const r = await dca.pause(sessionId);
+            showToast('Session paused — TX: ' + r.txId.slice(0,12) + '…', 'success');
+            setTimeout(loadUserSessions, 3000);
+        } catch (e) { showToast(e.message, 'danger'); }
+    }
+
+    async function resumeSession(sessionId) {
+        try {
+            showToast('Resuming — approve in Waves Keeper', 'info');
+            const r = await dca.resume(sessionId);
+            showToast('Session resumed — TX: ' + r.txId.slice(0,12) + '…', 'success');
+            setTimeout(loadUserSessions, 3000);
+        } catch (e) { showToast(e.message, 'danger'); }
+    }
+
+    // ── Toast ─────────────────────────────────────────────────
+    let toastTimer;
+    function showToast(message, type = 'info') {
+        const el = document.getElementById('toast');
+        el.className = `toast-${type}`;
+        el.textContent = message;
+        el.style.display = 'block';
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
+    }
+
+    // ── Auto-connect ──────────────────────────────────────────
+    window.addEventListener('load', async () => {
+        await new Promise(r => setTimeout(r, 1000));
+        if (typeof WavesKeeper !== 'undefined') {
+            try {
+                const state = await WavesKeeper.publicState();
+                if (state.account) connectBtn.click();
+            } catch { /* not logged in */ }
+        }
+    });
+</script>
+</body>
+</html>
