@@ -499,6 +499,34 @@
             <div class="empty-state">No sessions found.</div>
         </div>
     </div>
+
+    <div class="card" id="addressInfoCard" style="margin-top:24px;">
+        <div class="card-header">
+            <h2>Verified contract addresses</h2>
+        </div>
+        <div class="card-body">
+            <p style="color:var(--text-dim); margin-bottom:18px; font-size:13px; line-height:1.5;">
+                Everything below is on-chain and publicly verifiable. Click any address to inspect it on the Waves explorer.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:18px;">
+                <div>
+                    <div style="font-size:12px; font-weight:600; color:var(--text); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Contract</div>
+                    <div style="color:var(--text-dim); font-size:13px; margin-bottom:6px;">Where your DCA sessions live. Your deposit stays here until all swaps complete or you stop the session.</div>
+                    <a href="https://wavesexplorer.com/addresses/3PNLxE4VjyV82GZjUJ6gca8y6qtB81rsY2k" target="_blank" rel="noopener" style="display:inline-block; font-family:monospace; font-size:13px; color:var(--accent); word-break:break-all; text-decoration:none;">3PNLxE4VjyV82GZjUJ6gca8y6qtB81rsY2k &#8599;</a>
+                </div>
+                <div>
+                    <div style="font-size:12px; font-weight:600; color:var(--text); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Service (hot)</div>
+                    <div style="color:var(--text-dim); font-size:13px; margin-bottom:6px;">Signs each scheduled swap on your behalf. Reimbursed 0.01 WAVES per swap from your prepaid execution gas.</div>
+                    <a href="https://wavesexplorer.com/addresses/3P71LxgRg3ZnVS2yncxzAtkgQFLMAbFyN73" target="_blank" rel="noopener" style="display:inline-block; font-family:monospace; font-size:13px; color:var(--accent); word-break:break-all; text-decoration:none;">3P71LxgRg3ZnVS2yncxzAtkgQFLMAbFyN73 &#8599;</a>
+                </div>
+                <div>
+                    <div style="font-size:12px; font-weight:600; color:var(--text); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Admin (cold)</div>
+                    <div style="color:var(--text-dim); font-size:13px; margin-bottom:6px;">Receives the 1% service fee. Only authority that can re-enable the service after an emergency pause.</div>
+                    <a href="https://wavesexplorer.com/addresses/3P3DPGSVE9oqwourUNBBkW5wSsARiWnAu7r" target="_blank" rel="noopener" style="display:inline-block; font-family:monospace; font-size:13px; color:var(--accent); word-break:break-all; text-decoration:none;">3P3DPGSVE9oqwourUNBBkW5wSsARiWnAu7r &#8599;</a>
+                </div>
+            </div>
+        </div>
+    </div>
 </main>
 
 <div id="toast"></div>
