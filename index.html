@@ -741,7 +741,7 @@
 
         try {
             const toPrecision    = await dca.getAssetPrecision(toAsset);
-            const amountAfterFee = amount * (1 - 30 / 10000);
+            const amountAfterFee = amount * (1 - 100 / 10000);
             const amountIn = Math.floor(amountAfterFee * Math.pow(10, selectedAsset.decimals));
 
             const resp = await fetch(
