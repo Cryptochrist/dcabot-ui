@@ -345,6 +345,7 @@
     <div id="walletChip">
         <span class="dot"></span>
         <span id="walletAddressShort"></span>
+        <button id="disconnectBtn" title="Disconnect wallet" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:15px;padding:0 0 0 4px;line-height:1;">✕</button>
     </div>
 </nav>
 
@@ -567,6 +568,20 @@
             connectBtn.disabled = false;
             connectBtn.textContent = 'Connect Waves Keeper';
         }
+    });
+
+    // ── Disconnect ────────────────────────────────────────────
+    document.getElementById('disconnectBtn').addEventListener('click', () => {
+        userAddress = null;
+        if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+        walletChip.style.display = 'none';
+        walletCard.classList.add('hidden');
+        sessionsCard.classList.add('hidden');
+        heroSection.classList.remove('hidden');
+        connectCard.classList.remove('hidden');
+        connectBtn.disabled = false;
+        connectBtn.textContent = 'Connect Waves Keeper';
+        showToast('Wallet disconnected', 'info');
     });
 
     // ── Wallet balances ───────────────────────────────────────
