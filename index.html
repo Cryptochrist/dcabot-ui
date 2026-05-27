@@ -364,6 +364,17 @@
         <p>Waves Keeper browser extension required</p>
     </div>
 
+    <!-- Wallet portfolio (post-connect): balances + USD valuation -->
+    <div class="card hidden" id="portfolioCard" style="margin-top:24px;">
+        <div class="card-header">
+            <h2>Your Wallet <span id="portfolioTotal" style="font-size:13px;font-weight:400;color:var(--text-dim);margin-left:8px;"></span></h2>
+            <button class="btn btn-ghost btn-sm" id="refreshPortfolioBtn">Refresh</button>
+        </div>
+        <div class="card-body" id="portfolioBody">
+            <div class="empty-state">Loading…</div>
+        </div>
+    </div>
+
     <!-- Wallet + inline config (post-connect) -->
     <div class="card hidden" id="walletCard" style="margin-top:24px;">
         <div class="card-header">
@@ -400,7 +411,7 @@
                         <div class="field">
                             <label>Into</label>
                             <select id="toAsset">
-                                <option value="WAVES">WAVES</option>
+                                <option value="WAVES" selected>WAVES</option>
                                 <option value="DG2xFkPdDwKUoBkzGAhQtLpSGzfXLiCYPEzeKH2Ad24p">XTN</option>
                                 <option value="AP4Cb5xLYGH6ZigHreCZHoXpQTWDkPsG2BHqfDUx6taJ">ROME</option>
                                 <option value="7scqyYoVsNrpWbTAc78eRqNVcYLxMPzZs8EQfX7ruJAg">L2MP</option>
@@ -408,7 +419,7 @@
                                 <option value="6nSpVyNH7yM69eg446wrQR94ipbbcmZMU1ENPwanC97g">NSBT</option>
                                 <option value="DSbbhLsSTeDg5Lsiufk2Aneh3DjVqJuPr2M9uU1gwy5p">VIRES</option>
                                 <option value="8DLiYZjo3UUaRBTHU7Ayoqg4ihwb6YH1AfXrrhdjQ7K1">BUSD-WXG</option>
-                                <option value="34N9YcEETLWn93qYQ64EsP1x89tSruJU44RrEMSXXEPJ" selected>USDT-WXG</option>
+                                <option value="34N9YcEETLWn93qYQ64EsP1x89tSruJU44RrEMSXXEPJ">USDT-WXG</option>
                                 <option value="B45iYkZVC9cudR2yxrsJnrM75StiTrwphbfQ7xkyisip">USDTu</option>
                                 <option value="6XtHjpXbs9RRJP2Sr9GUyVqzACcby9TkThHXnjVC5CDJ">USDC-WXG</option>
                                 <option value="474jTeYx2r2Va35794tCScAXWJG9hU2HcgxzMowaZUnu">ETH-WXG</option>
@@ -583,6 +594,7 @@
             heroSection.classList.add('hidden');
             walletCard.classList.remove('hidden');
             sessionsCard.classList.remove('hidden');
+            document.getElementById('portfolioCard').classList.remove('hidden');
 
             showToast('Wallet connected', 'success');
             loadWalletBalances();
@@ -605,6 +617,7 @@
         walletChip.style.display = 'none';
         walletCard.classList.add('hidden');
         sessionsCard.classList.add('hidden');
+        document.getElementById('portfolioCard').classList.add('hidden');
         heroSection.classList.remove('hidden');
         connectCard.classList.remove('hidden');
         connectBtn.disabled = false;
@@ -669,11 +682,115 @@
                         data-decimals="${item.decimals}">${item.name} — ${display} available</option>`;
                 }).join('');
 
+            // Refresh portfolio USD values in parallel with the rest of the page
+            updatePortfolio();
+
         } catch (e) {
             sel.innerHTML = `<option value="">Failed to load wallet</option>`;
             showToast('Failed to load wallet: ' + e.message, 'error');
         }
     }
+
+    // ── Portfolio (USD valuation) ─────────────────────────────
+    // CoinGecko WAVES price cached 60s; PuzzleSwap aggregator quotes each
+    // non-WAVES asset → WAVES at the user's actual balance (captures real
+    // price impact). Hides assets with no PuzzleSwap route or value < $0.01.
+    let wavesPriceCache = { price: null, fetchedAt: 0 };
+
+    async function getWavesPrice() {
+        const TTL = 60_000;
+        const now = Date.now();
+        if (wavesPriceCache.price && now - wavesPriceCache.fetchedAt < TTL) {
+            return wavesPriceCache.price;
+        }
+        try {
+            const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=waves&vs_currencies=usd');
+            const d = await r.json();
+            const p = d.waves?.usd;
+            if (typeof p === 'number' && p > 0) {
+                wavesPriceCache = { price: p, fetchedAt: now };
+                return p;
+            }
+        } catch (e) {
+            console.warn('CoinGecko fetch failed', e);
+        }
+        return wavesPriceCache.price || 0.37; // fallback to stale or hardcoded
+    }
+
+    async function quoteAssetToWaves(assetId, rawAmount) {
+        if (!rawAmount || rawAmount <= 0) return null;
+        try {
+            const url = `https://swapapi.puzzleswap.org/aggregator/calc?token0=${assetId}&token1=WAVES&amountIn=${rawAmount}`;
+            const r = await fetch(url, {
+                headers: { 'Referer': 'https://puzzleswap.org/', 'Origin': 'https://puzzleswap.org' }
+            });
+            if (!r.ok) return null;
+            const d = await r.json();
+            if (d.error || !d.estimatedOut) return null;
+            return d.estimatedOut / 1e8; // WAVES (always 8 decimals)
+        } catch {
+            return null;
+        }
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function updatePortfolio() {
+        const body = document.getElementById('portfolioBody');
+        const totalEl = document.getElementById('portfolioTotal');
+        if (!walletItems.length) {
+            body.innerHTML = '<div class="empty-state">No assets in this wallet.</div>';
+            totalEl.textContent = '';
+            return;
+        }
+        body.innerHTML = '<div class="empty-state">Loading USD values…</div>';
+
+        const wavesUsd = await getWavesPrice();
+
+        const enriched = await Promise.all(walletItems.map(async (item) => {
+            let wavesValue;
+            if (item.isWaves) {
+                wavesValue = item.amount;
+            } else {
+                const rawAmount = Math.floor(item.amount * Math.pow(10, item.decimals));
+                wavesValue = await quoteAssetToWaves(item.id, rawAmount);
+            }
+            if (wavesValue == null) return { ...item, usd: null };
+            return { ...item, wavesValue, usd: wavesValue * wavesUsd };
+        }));
+
+        const visible = enriched
+            .filter(x => x.usd != null && x.usd >= 0.01)
+            .sort((a, b) => b.usd - a.usd);
+
+        if (!visible.length) {
+            body.innerHTML = '<div class="empty-state">No assets with USD value &ge; $0.01.</div>';
+            totalEl.textContent = '';
+            return;
+        }
+
+        const total = visible.reduce((s, x) => s + x.usd, 0);
+        totalEl.textContent =
+            `· Total $${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` +
+            `  ·  WAVES @ $${wavesUsd.toFixed(4)}`;
+
+        body.innerHTML = visible.map((x, i) => `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 0; ${i < visible.length - 1 ? 'border-bottom:1px solid var(--border);' : ''}">
+                <div>
+                    <div style="font-weight:600; color:var(--text); font-size:14px;">${escapeHtml(x.name)}</div>
+                    <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">${x.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-weight:600; color:var(--text); font-size:14px;">$${x.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">${x.wavesValue.toLocaleString(undefined, { maximumFractionDigits: 4 })} WAVES</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    document.getElementById('refreshPortfolioBtn').addEventListener('click', loadWalletBalances);
 
     // ── Asset selection ───────────────────────────────────────
     document.getElementById('assetSelect').addEventListener('change', function() {
