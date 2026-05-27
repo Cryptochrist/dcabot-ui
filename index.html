@@ -386,6 +386,12 @@
                 <select id="assetSelect">
                     <option value="">Loading wallet…</option>
                 </select>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <input type="text" id="customAssetInput" placeholder="…or paste an asset ID to add a custom token"
+                        spellcheck="false"
+                        style="flex:1; padding:10px 12px; background:#1c2230; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; font-family:monospace;" />
+                    <button type="button" class="btn btn-ghost btn-sm" id="addCustomAssetBtn" style="white-space:nowrap;">Add</button>
+                </div>
             </div>
 
             <!-- Config panel: shown when a token chip is clicked -->
@@ -805,6 +811,95 @@
     }
 
     document.getElementById('refreshPortfolioBtn').addEventListener('click', loadWalletBalances);
+
+    // ── Custom asset ID input ─────────────────────────────────
+    // Lets the user paste any Waves asset ID to add it as a DCA-from option.
+    // Useful when the wallet's auto-listed assets miss something (rare, but
+    // happens for new/uncached tokens).
+    async function addCustomAsset() {
+        const input = document.getElementById('customAssetInput');
+        const assetId = input.value.trim();
+        if (!assetId) return;
+
+        // Special case: WAVES
+        if (assetId.toUpperCase() === 'WAVES') {
+            const sel = document.getElementById('assetSelect');
+            sel.value = 'WAVES';
+            sel.dispatchEvent(new Event('change'));
+            input.value = '';
+            return;
+        }
+
+        // Loose base58 sanity check
+        if (assetId.length < 32 || assetId.length > 50 || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(assetId)) {
+            showToast('Not a valid asset ID', 'danger');
+            return;
+        }
+
+        // Already in dropdown? Just select it.
+        if (walletItems.some(i => i.id === assetId)) {
+            const sel = document.getElementById('assetSelect');
+            sel.value = assetId;
+            sel.dispatchEvent(new Event('change'));
+            input.value = '';
+            return;
+        }
+
+        const btn = document.getElementById('addCustomAssetBtn');
+        btn.disabled = true;
+        btn.textContent = '…';
+
+        try {
+            const [detailsResp, balanceResp] = await Promise.all([
+                fetch(`${dca.nodeUrl}/assets/details/${assetId}`),
+                fetch(`${dca.nodeUrl}/assets/balance/${userAddress}/${assetId}`)
+            ]);
+            if (!detailsResp.ok) throw new Error('asset not found');
+            const details = await detailsResp.json();
+            const balanceData = balanceResp.ok ? await balanceResp.json() : { balance: 0 };
+
+            const decimals = details.decimals ?? 8;
+            const rawBalance = balanceData.balance || 0;
+            const amount = rawBalance / Math.pow(10, decimals);
+            const name = (details.name || assetId.slice(0, 8)).trim();
+
+            if (amount <= 0) {
+                showToast(`You hold 0 ${name} — can't DCA from an empty balance`, 'warning');
+                return;
+            }
+
+            // Add to walletItems + dropdown
+            const newItem = { id: assetId, name, amount, decimals };
+            walletItems.push(newItem);
+            assetNameMap[assetId] = name;
+
+            const sel = document.getElementById('assetSelect');
+            const display = amount < 0.0001 ? amount.toExponential(2) : amount.toLocaleString(undefined, { maximumFractionDigits: 6 });
+            const opt = document.createElement('option');
+            opt.value = assetId;
+            opt.textContent = `${name} — ${display} available`;
+            opt.dataset.name = name;
+            opt.dataset.amount = amount;
+            opt.dataset.decimals = decimals;
+            sel.appendChild(opt);
+            sel.value = assetId;
+            sel.dispatchEvent(new Event('change'));
+
+            updatePortfolio(); // re-price including the new asset
+            input.value = '';
+            showToast(`Added ${name}`, 'success');
+        } catch (e) {
+            showToast('Could not add asset: ' + e.message, 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Add';
+        }
+    }
+
+    document.getElementById('addCustomAssetBtn').addEventListener('click', addCustomAsset);
+    document.getElementById('customAssetInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addCustomAsset(); }
+    });
 
     // ── Asset selection ───────────────────────────────────────
     document.getElementById('assetSelect').addEventListener('change', function() {
