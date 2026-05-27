@@ -386,31 +386,41 @@ class DCAService {
             const heightData = await heightResponse.json();
             const currentHeight = heightData.height;
 
+            // Defaults for completed/stopped sessions (transient keys deleted)
+            const blocksPerTrade = sessionData.blocksPerTrade || 0;
+            const lastBlock      = sessionData.lastBlock || 0;
+            const remaining      = sessionData.remaining || 0;
+            const total          = sessionData.total || 0;
+            const balance        = sessionData.balance || 0;
+            const minOut         = sessionData.minOut || 0;
+            const amountPerSwap  = sessionData.amountPerSwap || 0;
+            const created        = sessionData.created || 0;
+
             // Calculate blocks until next swap
-            const blocksPassed = currentHeight - sessionData.lastBlock;
-            const blocksUntilNext = Math.max(0, sessionData.blocksPerTrade - blocksPassed);
+            const blocksPassed = currentHeight - lastBlock;
+            const blocksUntilNext = blocksPerTrade > 0 ? Math.max(0, blocksPerTrade - blocksPassed) : 0;
 
             // Get asset precision for human-readable amounts
-            const fromPrecision = await this.getAssetPrecision(sessionData.fromAsset);
-            const toPrecision = await this.getAssetPrecision(sessionData.toAsset);
+            const fromPrecision = sessionData.fromAsset ? await this.getAssetPrecision(sessionData.fromAsset) : 0;
+            const toPrecision = sessionData.toAsset ? await this.getAssetPrecision(sessionData.toAsset) : 0;
 
             return {
                 id: sessionId,
-                active: sessionData.active,
+                active: sessionData.active || false,
                 owner: sessionData.owner,
-                fromAsset: sessionData.fromAsset,
-                toAsset: sessionData.toAsset,
-                blocksPerTrade: sessionData.blocksPerTrade,
-                minOut: sessionData.minOut / Math.pow(10, toPrecision),
-                amountPerSwap: sessionData.amountPerSwap / Math.pow(10, fromPrecision),
-                remaining: sessionData.remaining,
-                total: sessionData.total,
-                completed: sessionData.total - sessionData.remaining,
-                progress: ((sessionData.total - sessionData.remaining) / sessionData.total * 100).toFixed(1),
-                lastBlock: sessionData.lastBlock,
-                balance: sessionData.balance / Math.pow(10, fromPrecision),
-                wavesBalance: (sessionData.wavesBalance || 0) / 1e8, // WAVES balance for execution
-                created: new Date(sessionData.created).toISOString(),
+                fromAsset: sessionData.fromAsset || '',
+                toAsset: sessionData.toAsset || '',
+                blocksPerTrade: blocksPerTrade,
+                minOut: toPrecision > 0 ? minOut / Math.pow(10, toPrecision) : minOut,
+                amountPerSwap: fromPrecision > 0 ? amountPerSwap / Math.pow(10, fromPrecision) : amountPerSwap,
+                remaining: remaining,
+                total: total,
+                completed: total - remaining,
+                progress: total > 0 ? ((total - remaining) / total * 100).toFixed(1) : '0.0',
+                lastBlock: lastBlock,
+                balance: fromPrecision > 0 ? balance / Math.pow(10, fromPrecision) : balance,
+                wavesBalance: (sessionData.wavesBalance || 0) / 1e8,
+                created: created > 0 ? new Date(created).toISOString() : '',
                 blocksUntilNext: blocksUntilNext,
                 currentHeight: currentHeight,
                 paused: sessionData.paused || false

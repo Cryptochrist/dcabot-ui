@@ -1182,11 +1182,14 @@
     }
 
     function renderSession(s) {
-        const isPaused  = s.paused || false;
-        const pillClass = !s.active ? 'pill-stopped' : isPaused ? 'pill-paused' : 'pill-active';
-        const pillText  = !s.active ? 'Stopped' : isPaused ? 'Paused' : 'Active';
-        const itemClass = !s.active ? 'stopped' : isPaused ? 'paused' : '';
-        const nextText  = !s.active ? 'Session ended'
+        const isPaused    = s.paused || false;
+        const isCompleted = !s.active && s.remaining === 0;
+        const isDeactivated = !s.active && s.remaining > 0;
+        const pillClass = isCompleted ? 'pill-stopped' : isDeactivated ? 'pill-paused' : !s.active ? 'pill-stopped' : isPaused ? 'pill-paused' : 'pill-active';
+        const pillText  = isCompleted ? 'Completed' : isDeactivated ? 'Deactivated' : isPaused ? 'Paused' : 'Active';
+        const itemClass = !s.active ? (isDeactivated ? 'paused' : 'stopped') : isPaused ? 'paused' : '';
+        const nextText  = isCompleted ? 'All swaps completed'
+                        : isDeactivated ? 'Deactivated — tap Resume to restart'
                         : isPaused  ? 'Paused — swaps suspended'
                         : `Next swap in ${s.blocksUntilNext} block${s.blocksUntilNext !== 1 ? 's' : ''}`;
 
@@ -1200,13 +1203,15 @@
                     <h3>${fromName} → ${toName}</h3>
                     <span class="pill ${pillClass}">${pillText}</span>
                 </div>
-                ${s.active ? `
+                ${s.active || isDeactivated ? `
                 <div class="session-actions">
-                    ${isPaused
+                    ${isDeactivated
                         ? `<button class="btn btn-success btn-sm resume-btn" data-session-id="${s.id}">Resume</button>`
-                        : `<button class="btn btn-warn btn-sm pause-btn" data-session-id="${s.id}">Pause</button>`
+                        : isPaused
+                            ? `<button class="btn btn-success btn-sm resume-btn" data-session-id="${s.id}">Resume</button>`
+                            : `<button class="btn btn-warn btn-sm pause-btn" data-session-id="${s.id}">Pause</button>`
                     }
-                    <button class="btn btn-danger btn-sm stop-btn" data-session-id="${s.id}">Stop</button>
+                    ${s.active ? `<button class="btn btn-danger btn-sm stop-btn" data-session-id="${s.id}">Stop</button>` : ''}
                 </div>` : ''}
             </div>
 
