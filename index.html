@@ -156,7 +156,7 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
-            max-height: 280px;
+            max-height: 400px;
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: var(--border) transparent;
@@ -180,13 +180,33 @@
             border-color: var(--accent);
             background: var(--accent-dim);
         }
+        .token-item-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
         .token-item-name {
             font-size: 14px;
             font-weight: 500;
             color: #e6edf3;
         }
         .token-item-balance {
-            font-size: 13px;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+        .token-item-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .token-item-usd {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e6edf3;
+        }
+        .token-item-waves {
+            font-size: 12px;
             color: var(--text-dim);
         }
 
@@ -382,23 +402,13 @@
         <p>Waves Keeper browser extension required</p>
     </div>
 
-    <!-- Wallet portfolio (post-connect): balances + USD valuation -->
-    <div class="card hidden" id="portfolioCard" style="margin-top:24px;">
-        <div class="card-header">
-            <h2>Your Wallet <span id="portfolioTotal" style="font-size:13px;font-weight:400;color:var(--text-dim);margin-left:8px;"></span></h2>
-            <button class="btn btn-ghost btn-sm" id="refreshPortfolioBtn">Refresh</button>
-        </div>
-        <div class="card-body" id="portfolioBody" style="max-height:360px; overflow-y:auto;">
-            <div class="empty-state">Loading…</div>
-        </div>
-    </div>
-
-    <!-- Wallet + inline config (post-connect) -->
+    <!-- Wallet (post-connect): token list with USD values + DCA config -->
     <div class="card hidden" id="walletCard" style="margin-top:24px;">
         <div class="card-header">
-            <h2>Wallet <span id="walletHint" style="font-size:12px;font-weight:400;color:var(--text-dim);margin-left:8px;">— select a token to start a DCA</span></h2>
+            <h2>Your Wallet <span id="portfolioTotal" style="font-size:13px;font-weight:400;color:var(--text-dim);margin-left:8px;"></span></h2>
             <button class="btn btn-ghost btn-sm" id="refreshBalancesBtn">Refresh</button>
         </div>
+        <div style="padding:0 16px 4px;font-size:12px;color:var(--text-dim);" id="walletHint">Click a token to start a DCA</div>
         <div class="card-body">
             <select id="assetSelect" style="display:none;">
                 <option value="">Loading wallet…</option>
@@ -619,7 +629,6 @@
             heroSection.classList.add('hidden');
             walletCard.classList.remove('hidden');
             sessionsCard.classList.remove('hidden');
-            document.getElementById('portfolioCard').classList.remove('hidden');
 
             showToast('Wallet connected', 'success');
             loadWalletBalances();
@@ -642,7 +651,6 @@
         walletChip.style.display = 'none';
         walletCard.classList.add('hidden');
         sessionsCard.classList.add('hidden');
-        document.getElementById('portfolioCard').classList.add('hidden');
         heroSection.classList.remove('hidden');
         connectCard.classList.remove('hidden');
         connectBtn.disabled = false;
@@ -701,8 +709,14 @@
                     ? item.amount.toExponential(2)
                     : item.amount.toLocaleString(undefined, { maximumFractionDigits: 6 });
                 return `<div class="token-item" data-id="${item.id}" data-name="${item.name}" data-amount="${item.amount}" data-decimals="${item.decimals}">
-                    <span class="token-item-name">${item.name}</span>
-                    <span class="token-item-balance">${display}</span>
+                    <div class="token-item-left">
+                        <span class="token-item-name">${item.name}</span>
+                        <span class="token-item-balance">${display}</span>
+                    </div>
+                    <div class="token-item-right">
+                        <span class="token-item-usd">…</span>
+                        <span class="token-item-waves"></span>
+                    </div>
                 </div>`;
             }).join('');
 
@@ -771,19 +785,15 @@
     }
 
     async function updatePortfolio() {
-        const body = document.getElementById('portfolioBody');
         const totalEl = document.getElementById('portfolioTotal');
+        const tokenListEl = document.getElementById('tokenList');
         if (!walletItems.length) {
-            body.innerHTML = '<div class="empty-state">No assets in this wallet.</div>';
             totalEl.textContent = '';
             return;
         }
-        body.innerHTML = '<div class="empty-state">Loading USD values…</div>';
 
         const wavesUsd = await getWavesPrice();
 
-        // Throttle to 4 concurrent PuzzleSwap requests to avoid rate-limit drops.
-        // With ~30 tokens this takes ~2s instead of 0.5s, but completes reliably.
         const CONCURRENCY = 4;
         const enriched = new Array(walletItems.length);
         let idx = 0;
@@ -797,9 +807,6 @@
                 } else {
                     const rawAmount = Math.floor(item.amount * Math.pow(10, item.decimals));
                     wavesValue = await quoteAssetToWaves(item.id, rawAmount);
-                    if (wavesValue == null) {
-                        console.warn(`[portfolio] no route or 0 out for ${item.name} (${item.id}) amount=${rawAmount}`);
-                    }
                 }
                 enriched[i] = wavesValue == null
                     ? { ...item, usd: null }
@@ -808,36 +815,41 @@
         }
         await Promise.all(Array.from({length: CONCURRENCY}, worker));
 
-        // Show every wallet asset (matching the dropdown). Priced first
-        // (by USD desc), unpriced after (alphabetical). Total only sums
-        // priced assets — unpriced are excluded but still listed.
-        const priced = enriched.filter(x => x.usd != null).sort((a, b) => b.usd - a.usd);
-        const unpriced = enriched.filter(x => x.usd == null).sort((a, b) => a.name.localeCompare(b.name));
-        const all = [...priced, ...unpriced];
+        // Update USD values in each token item
+        const items = tokenListEl.querySelectorAll('.token-item');
+        items.forEach(el => {
+            const data = enriched.find(x => x.id === el.dataset.id);
+            if (!data) return;
+            const usdEl = el.querySelector('.token-item-usd');
+            const wavesEl = el.querySelector('.token-item-waves');
+            if (data.usd != null) {
+                usdEl.textContent = '$' + data.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                wavesEl.textContent = data.isWaves ? '' : data.wavesValue.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' WAVES';
+            } else {
+                usdEl.textContent = '—';
+                usdEl.style.color = 'var(--text-dim)';
+                wavesEl.textContent = '';
+            }
+        });
 
-        const total = priced.reduce((s, x) => s + x.usd, 0);
+        // Re-sort: priced items by USD desc, then unpriced alphabetical
+        const sorted = [...enriched]
+            .sort((a, b) => {
+                if (a.usd != null && b.usd != null) return b.usd - a.usd;
+                if (a.usd != null) return -1;
+                if (b.usd != null) return 1;
+                return a.name.localeCompare(b.name);
+            });
+        sorted.forEach(x => {
+            const el = tokenListEl.querySelector(`.token-item[data-id="${x.id}"]`);
+            if (el) tokenListEl.appendChild(el);
+        });
+
+        const total = enriched.filter(x => x.usd != null).reduce((s, x) => s + x.usd, 0);
         totalEl.textContent =
             `· Total $${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` +
             `  ·  WAVES @ $${wavesUsd.toFixed(4)}`;
-
-        body.innerHTML = all.map((x, i) => {
-            const usdCell = x.usd != null
-                ? `<div style="font-weight:600; color:var(--text); font-size:14px;">$${x.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                   <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">${x.wavesValue.toLocaleString(undefined, { maximumFractionDigits: 4 })} WAVES</div>`
-                : `<div style="font-weight:600; color:var(--text-dim); font-size:14px;">—</div>
-                   <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">no PuzzleSwap route</div>`;
-            return `
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 0; ${i < all.length - 1 ? 'border-bottom:1px solid var(--border);' : ''}">
-                <div>
-                    <div style="font-weight:600; color:var(--text); font-size:14px;">${escapeHtml(x.name)}</div>
-                    <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">${x.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
-                </div>
-                <div style="text-align:right;">${usdCell}</div>
-            </div>`;
-        }).join('');
     }
-
-    document.getElementById('refreshPortfolioBtn').addEventListener('click', loadWalletBalances);
 
     // ── Custom asset ID input ─────────────────────────────────
     // Lets the user paste any Waves asset ID to add it as a DCA-from option.
