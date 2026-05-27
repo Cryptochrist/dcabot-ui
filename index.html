@@ -761,33 +761,33 @@
             return { ...item, wavesValue, usd: wavesValue * wavesUsd };
         }));
 
-        const visible = enriched
-            .filter(x => x.usd != null && x.usd >= 0.01)
-            .sort((a, b) => b.usd - a.usd);
+        // Show every wallet asset (matching the dropdown). Priced first
+        // (by USD desc), unpriced after (alphabetical). Total only sums
+        // priced assets — unpriced are excluded but still listed.
+        const priced = enriched.filter(x => x.usd != null).sort((a, b) => b.usd - a.usd);
+        const unpriced = enriched.filter(x => x.usd == null).sort((a, b) => a.name.localeCompare(b.name));
+        const all = [...priced, ...unpriced];
 
-        if (!visible.length) {
-            body.innerHTML = '<div class="empty-state">No assets with USD value &ge; $0.01.</div>';
-            totalEl.textContent = '';
-            return;
-        }
-
-        const total = visible.reduce((s, x) => s + x.usd, 0);
+        const total = priced.reduce((s, x) => s + x.usd, 0);
         totalEl.textContent =
             `· Total $${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` +
             `  ·  WAVES @ $${wavesUsd.toFixed(4)}`;
 
-        body.innerHTML = visible.map((x, i) => `
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 0; ${i < visible.length - 1 ? 'border-bottom:1px solid var(--border);' : ''}">
+        body.innerHTML = all.map((x, i) => {
+            const usdCell = x.usd != null
+                ? `<div style="font-weight:600; color:var(--text); font-size:14px;">$${x.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                   <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">${x.wavesValue.toLocaleString(undefined, { maximumFractionDigits: 4 })} WAVES</div>`
+                : `<div style="font-weight:600; color:var(--text-dim); font-size:14px;">—</div>
+                   <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">no PuzzleSwap route</div>`;
+            return `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 0; ${i < all.length - 1 ? 'border-bottom:1px solid var(--border);' : ''}">
                 <div>
                     <div style="font-weight:600; color:var(--text); font-size:14px;">${escapeHtml(x.name)}</div>
                     <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">${x.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
                 </div>
-                <div style="text-align:right;">
-                    <div style="font-weight:600; color:var(--text); font-size:14px;">$${x.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">${x.wavesValue.toLocaleString(undefined, { maximumFractionDigits: 4 })} WAVES</div>
-                </div>
-            </div>
-        `).join('');
+                <div style="text-align:right;">${usdCell}</div>
+            </div>`;
+        }).join('');
     }
 
     document.getElementById('refreshPortfolioBtn').addEventListener('click', loadWalletBalances);
