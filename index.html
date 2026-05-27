@@ -145,32 +145,50 @@
         #connectCard { text-align: center; padding: 40px; }
         #connectCard p { color: var(--text-dim); font-size: 14px; margin-top: 12px; }
 
-        /* ── Asset dropdown ── */
+        /* ── Token list (wallet) ── */
         .asset-select-wrap {
             display: flex;
             gap: 10px;
             align-items: center;
         }
-        #assetSelect {
-            flex: 1;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            color: var(--text);
-            padding: 10px 14px;
-            font-size: 14px;
-            cursor: pointer;
-            appearance: none;
-            -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236e7681' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 14px center;
-            padding-right: 36px;
-            transition: border-color .15s;
+        #assetSelect { display: none; }
+        .token-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 280px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
         }
-        #assetSelect:hover  { border-color: #444d56; }
-        #assetSelect:focus  { outline: none; border-color: var(--accent); }
-        #assetSelect option { background: #1c2230; }
+        .token-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-radius: var(--radius);
+            border: 1px solid transparent;
+            background: var(--surface2);
+            cursor: pointer;
+            transition: border-color .15s, background .15s;
+        }
+        .token-item:hover {
+            border-color: #444d56;
+            background: #1f2937;
+        }
+        .token-item.selected {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+        .token-item-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e6edf3;
+        }
+        .token-item-balance {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
 
         /* ── Config panel ── */
         .config-panel {
@@ -382,16 +400,17 @@
             <button class="btn btn-ghost btn-sm" id="refreshBalancesBtn">Refresh</button>
         </div>
         <div class="card-body">
-            <div class="asset-select-wrap">
-                <select id="assetSelect">
-                    <option value="">Loading wallet…</option>
-                </select>
-                <div style="display:flex; gap:8px; margin-top:10px;">
-                    <input type="text" id="customAssetInput" placeholder="…or paste an asset ID to add a custom token"
-                        spellcheck="false"
-                        style="flex:1; padding:10px 12px; background:#1c2230; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; font-family:monospace;" />
-                    <button type="button" class="btn btn-ghost btn-sm" id="addCustomAssetBtn" style="white-space:nowrap;">Add</button>
-                </div>
+            <select id="assetSelect" style="display:none;">
+                <option value="">Loading wallet…</option>
+            </select>
+            <div id="tokenList" class="token-list">
+                <div style="color:var(--text-dim);font-size:13px;padding:10px 14px;">Connect wallet to see tokens</div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+                <input type="text" id="customAssetInput" placeholder="…or paste an asset ID to add a custom token"
+                    spellcheck="false"
+                    style="flex:1; padding:10px 12px; background:#1c2230; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; font-family:monospace;" />
+                <button type="button" class="btn btn-ghost btn-sm" id="addCustomAssetBtn" style="white-space:nowrap;">Add</button>
             </div>
 
             <!-- Config panel: shown when a token chip is clicked -->
@@ -638,8 +657,8 @@
     let walletItems = [];
 
     async function loadWalletBalances() {
-        const sel = document.getElementById('assetSelect');
-        sel.innerHTML = '<option value="">Loading wallet…</option>';
+        const tokenListEl = document.getElementById('tokenList');
+        tokenListEl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:10px 14px;">Loading wallet…</div>';
         clearAsset();
 
         try {
@@ -677,22 +696,30 @@
             items.forEach(item => { assetNameMap[item.id] = item.name; });
             walletItems = items;
 
-            sel.innerHTML = '<option value="">— Select a token to DCA —</option>' +
-                items.map(item => {
-                    const display = item.amount < 0.0001
-                        ? item.amount.toExponential(2)
-                        : item.amount.toLocaleString(undefined, { maximumFractionDigits: 6 });
-                    return `<option value="${item.id}"
-                        data-name="${item.name}"
-                        data-amount="${item.amount}"
-                        data-decimals="${item.decimals}">${item.name} — ${display} available</option>`;
-                }).join('');
+            tokenListEl.innerHTML = items.map(item => {
+                const display = item.amount < 0.0001
+                    ? item.amount.toExponential(2)
+                    : item.amount.toLocaleString(undefined, { maximumFractionDigits: 6 });
+                return `<div class="token-item" data-id="${item.id}" data-name="${item.name}" data-amount="${item.amount}" data-decimals="${item.decimals}">
+                    <span class="token-item-name">${item.name}</span>
+                    <span class="token-item-balance">${display}</span>
+                </div>`;
+            }).join('');
+
+            // Click handler: select token for DCA
+            tokenListEl.querySelectorAll('.token-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    tokenListEl.querySelectorAll('.token-item').forEach(t => t.classList.remove('selected'));
+                    el.classList.add('selected');
+                    selectAsset(el.dataset.id, el.dataset.name, parseFloat(el.dataset.amount), parseInt(el.dataset.decimals));
+                });
+            });
 
             // Refresh portfolio USD values in parallel with the rest of the page
             updatePortfolio();
 
         } catch (e) {
-            sel.innerHTML = `<option value="">Failed to load wallet</option>`;
+            tokenListEl.innerHTML = '<div style="color:var(--red);font-size:13px;padding:10px 14px;">Failed to load wallet</div>';
             showToast('Failed to load wallet: ' + e.message, 'error');
         }
     }
@@ -823,9 +850,8 @@
 
         // Special case: WAVES
         if (assetId.toUpperCase() === 'WAVES') {
-            const sel = document.getElementById('assetSelect');
-            sel.value = 'WAVES';
-            sel.dispatchEvent(new Event('change'));
+            const item = walletItems.find(i => i.id === 'WAVES');
+            if (item) selectAsset(item.id, item.name, item.amount, item.decimals);
             input.value = '';
             return;
         }
@@ -836,11 +862,11 @@
             return;
         }
 
-        // Already in dropdown? Just select it.
-        if (walletItems.some(i => i.id === assetId)) {
-            const sel = document.getElementById('assetSelect');
-            sel.value = assetId;
-            sel.dispatchEvent(new Event('change'));
+        // Already in token list? Just select it.
+        const existing = walletItems.find(i => i.id === assetId);
+        if (existing) {
+            highlightToken(assetId);
+            selectAsset(existing.id, existing.name, existing.amount, existing.decimals);
             input.value = '';
             return;
         }
@@ -868,22 +894,28 @@
                 return;
             }
 
-            // Add to walletItems + dropdown
+            // Add to walletItems + token list
             const newItem = { id: assetId, name, amount, decimals };
             walletItems.push(newItem);
             assetNameMap[assetId] = name;
 
-            const sel = document.getElementById('assetSelect');
+            const tokenListEl = document.getElementById('tokenList');
             const display = amount < 0.0001 ? amount.toExponential(2) : amount.toLocaleString(undefined, { maximumFractionDigits: 6 });
-            const opt = document.createElement('option');
-            opt.value = assetId;
-            opt.textContent = `${name} — ${display} available`;
-            opt.dataset.name = name;
-            opt.dataset.amount = amount;
-            opt.dataset.decimals = decimals;
-            sel.appendChild(opt);
-            sel.value = assetId;
-            sel.dispatchEvent(new Event('change'));
+            const div = document.createElement('div');
+            div.className = 'token-item';
+            div.dataset.id = assetId;
+            div.dataset.name = name;
+            div.dataset.amount = amount;
+            div.dataset.decimals = decimals;
+            div.innerHTML = `<span class="token-item-name">${name}</span><span class="token-item-balance">${display}</span>`;
+            div.addEventListener('click', () => {
+                tokenListEl.querySelectorAll('.token-item').forEach(t => t.classList.remove('selected'));
+                div.classList.add('selected');
+                selectAsset(assetId, name, amount, decimals);
+            });
+            tokenListEl.appendChild(div);
+            highlightToken(assetId);
+            selectAsset(assetId, name, amount, decimals);
 
             updatePortfolio(); // re-price including the new asset
             input.value = '';
@@ -935,11 +967,16 @@
 
     document.getElementById('clearAssetBtn').addEventListener('click', clearAsset);
 
+    function highlightToken(assetId) {
+        const tokenListEl = document.getElementById('tokenList');
+        tokenListEl.querySelectorAll('.token-item').forEach(t => t.classList.toggle('selected', t.dataset.id === assetId));
+    }
+
     function clearAsset() {
         selectedAsset = null;
         routeValid = false;
-        const sel = document.getElementById('assetSelect');
-        if (sel) sel.value = '';
+        // Clear token list selection
+        document.querySelectorAll('.token-item').forEach(t => t.classList.remove('selected'));
         // Restore all toAsset options
         Array.from(document.getElementById('toAsset').options).forEach(opt => { opt.hidden = false; });
         configPanel.classList.add('hidden');
