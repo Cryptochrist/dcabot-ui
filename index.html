@@ -370,7 +370,7 @@
             <h2>Your Wallet <span id="portfolioTotal" style="font-size:13px;font-weight:400;color:var(--text-dim);margin-left:8px;"></span></h2>
             <button class="btn btn-ghost btn-sm" id="refreshPortfolioBtn">Refresh</button>
         </div>
-        <div class="card-body" id="portfolioBody">
+        <div class="card-body" id="portfolioBody" style="max-height:360px; overflow-y:auto;">
             <div class="empty-state">Loading…</div>
         </div>
     </div>
@@ -749,17 +749,31 @@
 
         const wavesUsd = await getWavesPrice();
 
-        const enriched = await Promise.all(walletItems.map(async (item) => {
-            let wavesValue;
-            if (item.isWaves) {
-                wavesValue = item.amount;
-            } else {
-                const rawAmount = Math.floor(item.amount * Math.pow(10, item.decimals));
-                wavesValue = await quoteAssetToWaves(item.id, rawAmount);
+        // Throttle to 4 concurrent PuzzleSwap requests to avoid rate-limit drops.
+        // With ~30 tokens this takes ~2s instead of 0.5s, but completes reliably.
+        const CONCURRENCY = 4;
+        const enriched = new Array(walletItems.length);
+        let idx = 0;
+        async function worker() {
+            while (idx < walletItems.length) {
+                const i = idx++;
+                const item = walletItems[i];
+                let wavesValue;
+                if (item.isWaves) {
+                    wavesValue = item.amount;
+                } else {
+                    const rawAmount = Math.floor(item.amount * Math.pow(10, item.decimals));
+                    wavesValue = await quoteAssetToWaves(item.id, rawAmount);
+                    if (wavesValue == null) {
+                        console.warn(`[portfolio] no route or 0 out for ${item.name} (${item.id}) amount=${rawAmount}`);
+                    }
+                }
+                enriched[i] = wavesValue == null
+                    ? { ...item, usd: null }
+                    : { ...item, wavesValue, usd: wavesValue * wavesUsd };
             }
-            if (wavesValue == null) return { ...item, usd: null };
-            return { ...item, wavesValue, usd: wavesValue * wavesUsd };
-        }));
+        }
+        await Promise.all(Array.from({length: CONCURRENCY}, worker));
 
         // Show every wallet asset (matching the dropdown). Priced first
         // (by USD desc), unpriced after (alphabetical). Total only sums
