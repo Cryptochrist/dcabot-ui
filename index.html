@@ -1215,7 +1215,7 @@
                 </div>` : ''}
             </div>
 
-            <div class="session-stats">
+            ${!isCompleted ? `<div class="session-stats">
                 <div class="stat">
                     <span class="stat-label">Per Swap</span>
                     <span class="stat-value">${s.amountPerSwap} ${fromName}</span>
@@ -1234,7 +1234,7 @@
                         ? s.minOut.toFixed(6) + ' ' + toName
                         : '<span style="color:var(--text-dim)">None</span>'}</span>
                 </div>
-            </div>
+            </div>` : ''}
 
             <div class="progress-wrap">
                 <div class="progress-bar-bg">
@@ -1242,7 +1242,9 @@
                 </div>
                 <div class="progress-meta">
                     <span>${s.completed} / ${s.total} swaps</span>
-                    <span>${nextText}${s.active && !isPaused && s.remaining > 0 ? ' · ' + formatDuration(s.remaining * s.blocksPerTrade * 60) + ' left' : ''}</span>
+                    <span>${isCompleted && s.created
+                        ? new Date(s.created).toLocaleDateString()
+                        : nextText}${s.active && !isPaused && s.remaining > 0 ? ' · ' + formatDuration(s.remaining * s.blocksPerTrade * 60) + ' left' : ''}</span>
                 </div>
             </div>
 
