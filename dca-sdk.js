@@ -375,6 +375,7 @@ class DCAService {
                 if (key === `wavesbalance_${sessionId}`) sessionData.wavesBalance = entry.value;
                 if (key === `created_${sessionId}`) sessionData.created = entry.value;
                 if (key === `paused_${sessionId}`) sessionData.paused = entry.value;
+                if (key === `received_${sessionId}`) sessionData.totalReceived = entry.value;
             });
 
             if (!sessionData.owner) {
@@ -423,7 +424,8 @@ class DCAService {
                 created: created > 0 ? new Date(created).toISOString() : '',
                 blocksUntilNext: blocksUntilNext,
                 currentHeight: currentHeight,
-                paused: sessionData.paused || false
+                paused: sessionData.paused || false,
+                totalReceived: toPrecision > 0 ? (sessionData.totalReceived || 0) / Math.pow(10, toPrecision) : (sessionData.totalReceived || 0)
             };
 
         } catch (error) {

@@ -1236,6 +1236,13 @@
                 </div>
             </div>` : ''}
 
+            ${s.totalReceived > 0 ? `<div class="session-stats" style="grid-template-columns:1fr">
+                <div class="stat">
+                    <span class="stat-label">Total Received</span>
+                    <span class="stat-value" style="color:var(--green)">${s.totalReceived.toFixed(6)} ${toName}</span>
+                </div>
+            </div>` : ''}
+
             <div class="progress-wrap">
                 <div class="progress-bar-bg">
                     <div class="progress-bar-fill" style="width:${s.progress}%"></div>
