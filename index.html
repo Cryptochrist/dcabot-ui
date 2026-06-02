@@ -410,6 +410,10 @@
         </div>
         <div style="padding:0 16px 4px;font-size:12px;color:var(--text-dim);" id="walletHint">Click a token to start a DCA</div>
         <div class="card-body">
+            <input type="text" id="tokenSearchInput" placeholder="Search tokens…"
+                spellcheck="false"
+                style="width:100%; padding:8px 12px; margin-bottom:8px; background:#1c2230; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; outline:none;"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
             <select id="assetSelect" style="display:none;">
                 <option value="">Loading wallet…</option>
             </select>
@@ -667,6 +671,8 @@
     async function loadWalletBalances() {
         const tokenListEl = document.getElementById('tokenList');
         tokenListEl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:10px 14px;">Loading wallet…</div>';
+        const searchInput = document.getElementById('tokenSearchInput');
+        if (searchInput) searchInput.value = '';
         clearAsset();
 
         try {
@@ -726,6 +732,16 @@
                     tokenListEl.querySelectorAll('.token-item').forEach(t => t.classList.remove('selected'));
                     el.classList.add('selected');
                     selectAsset(el.dataset.id, el.dataset.name, parseFloat(el.dataset.amount), parseInt(el.dataset.decimals));
+                });
+            });
+
+            // Search/filter handler
+            document.getElementById('tokenSearchInput').addEventListener('input', function() {
+                const q = this.value.toLowerCase();
+                tokenListEl.querySelectorAll('.token-item').forEach(el => {
+                    const name = (el.dataset.name || '').toLowerCase();
+                    const id = (el.dataset.id || '').toLowerCase();
+                    el.style.display = (name.includes(q) || id.includes(q)) ? '' : 'none';
                 });
             });
 
