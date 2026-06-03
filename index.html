@@ -526,6 +526,11 @@
                         <strong><span id="totalCost">0</span> <span id="totalAsset">—</span></strong>
                     </div>
 
+                    <div class="cost-row">
+                        <span>Est. duration</span>
+                        <strong><span id="estDuration">—</span></strong>
+                    </div>
+
                     <div class="config-actions">
                         <button type="submit" class="btn btn-primary" id="submitBtn">
                             Start DCA Session
@@ -1023,7 +1028,7 @@
     });
 
     // ── Live cost + estimate ──────────────────────────────────
-    ['amount', 'swaps', 'toAsset'].forEach(id => {
+    ['amount', 'swaps', 'blocks', 'toAsset'].forEach(id => {
         document.getElementById(id).addEventListener('input', () => {
             updateTotalCost();
             updateEstimatedOutput();
@@ -1033,8 +1038,21 @@
     function updateTotalCost() {
         const amount = parseFloat(document.getElementById('amount').value) || 0;
         const swaps  = parseInt(document.getElementById('swaps').value) || 0;
+        const blocks = parseInt(document.getElementById('blocks').value) || 0;
         document.getElementById('totalCost').textContent =
             (amount * swaps).toLocaleString(undefined, { maximumFractionDigits: 8 });
+
+        const totalMins = blocks * swaps;
+        const durEl = document.getElementById('estDuration');
+        if (totalMins <= 0) { durEl.textContent = '—'; return; }
+        if (totalMins < 60) durEl.textContent = `~${totalMins}m`;
+        else if (totalMins < 1440) {
+            const h = Math.floor(totalMins / 60), m = totalMins % 60;
+            durEl.textContent = m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+        } else {
+            const d = Math.floor(totalMins / 1440), h = Math.floor((totalMins % 1440) / 60);
+            durEl.textContent = h > 0 ? `~${d}d ${h}h` : `~${d}d`;
+        }
     }
 
     let estDebounce;
