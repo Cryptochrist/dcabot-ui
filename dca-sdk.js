@@ -185,7 +185,8 @@ class DCAService {
 
         try {
             // Sign and publish via Waves Keeper
-            const result = await WavesKeeper.signAndPublishTransaction(txData);
+            const raw = await WavesKeeper.signAndPublishTransaction(txData);
+            const result = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
             console.log('Transaction result:', result);
 
@@ -252,7 +253,8 @@ class DCAService {
 
         try {
             // Sign and publish via Waves Keeper
-            const result = await WavesKeeper.signAndPublishTransaction(txData);
+            const rawStop = await WavesKeeper.signAndPublishTransaction(txData);
+            const result = typeof rawStop === 'string' ? JSON.parse(rawStop) : rawStop;
 
             console.log('Stop transaction result:', result);
 
@@ -293,7 +295,8 @@ class DCAService {
         };
 
         try {
-            const result = await WavesKeeper.signAndPublishTransaction(txData);
+            const raw = await WavesKeeper.signAndPublishTransaction(txData);
+            const result = typeof raw === 'string' ? JSON.parse(raw) : raw;
             return { success: true, txId: result.id };
         } catch (error) {
             throw new Error('Failed to pause session: ' + error.message);
@@ -326,7 +329,8 @@ class DCAService {
         };
 
         try {
-            const result = await WavesKeeper.signAndPublishTransaction(txData);
+            const raw = await WavesKeeper.signAndPublishTransaction(txData);
+            const result = typeof raw === 'string' ? JSON.parse(raw) : raw;
             return { success: true, txId: result.id };
         } catch (error) {
             throw new Error('Failed to resume session: ' + error.message);
@@ -542,7 +546,8 @@ class DCAService {
         };
 
         try {
-            const result = await WavesKeeper.signAndPublishTransaction(txData);
+            const raw = await WavesKeeper.signAndPublishTransaction(txData);
+            const result = typeof raw === 'string' ? JSON.parse(raw) : raw;
             return { success: true, txId: result.id };
         } catch (error) {
             throw new Error('Failed to update minOut: ' + error.message);
