@@ -694,10 +694,35 @@
                 decimals: 8, isWaves: true
             }];
 
-            for (const asset of (assetsData.balances || [])) {
-                if (!asset.balance) continue;
-                const decimals = asset.issueTransaction?.decimals ?? 8;
-                const name = (asset.issueTransaction?.name || asset.assetId.slice(0,8)).trim();
+            const rawAssets = (assetsData.balances || []).filter(a => a.balance);
+
+            // Resolve authoritative name + decimals via /assets/details. The
+            // balance endpoint returns issueTransaction:null for bridged/gateway
+            // assets (e.g. the *-PPT tokens like USDT-ERC20-PPT), which would
+            // otherwise fall back to 8 decimals + a sliced asset id. Batch the
+            // lookups (chunked to stay under URL length limits).
+            const detailsMap = {};
+            for (let i = 0; i < rawAssets.length; i += 30) {
+                const chunk = rawAssets.slice(i, i + 30);
+                try {
+                    const qs = chunk.map(a => `id=${a.assetId}`).join('&');
+                    const dResp = await fetch(`${dca.nodeUrl}/assets/details?${qs}`);
+                    if (dResp.ok) {
+                        (await dResp.json()).forEach(d => {
+                            if (d && d.assetId) detailsMap[d.assetId] = d;
+                        });
+                    }
+                } catch (_) { /* fall back to issueTransaction below */ }
+            }
+
+            for (const asset of rawAssets) {
+                const det = detailsMap[asset.assetId];
+                const decimals = det?.decimals
+                    ?? asset.issueTransaction?.decimals
+                    ?? 8;
+                const name = (det?.name
+                    || asset.issueTransaction?.name
+                    || asset.assetId.slice(0, 8)).trim();
                 items.push({
                     id: asset.assetId, name,
                     amount: asset.balance / Math.pow(10, decimals),
