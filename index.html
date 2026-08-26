@@ -276,6 +276,10 @@
         .est-row span { color: var(--text-dim); font-size: 13px; }
         .est-row .est-value { font-weight: 600; color: var(--green); }
 
+        .fee-note {
+            font-size: 11px; color: var(--text-dim); line-height: 1.5;
+            margin: -8px 0 16px; padding: 0 2px;
+        }
         .cost-row {
             display: flex; align-items: center; justify-content: space-between;
             background: var(--surface2); border: 1px solid var(--border);
@@ -517,6 +521,16 @@
                     <div class="cost-row">
                         <span>Total cost</span>
                         <strong><span id="totalCost">0</span> <span id="totalAsset">—</span></strong>
+                    </div>
+
+                    <div class="cost-row">
+                        <span>Service fee (1%)</span>
+                        <strong><span id="serviceFee">0</span> <span id="feeAsset">—</span></strong>
+                    </div>
+                    <div class="fee-note">
+                        Deducted once, upfront, from your deposit. <strong>Non-refundable</strong> — if you
+                        stop the plan early you get back the unswapped balance and unused gas, but not this fee.
+                        The remaining <span id="netPerSwap">—</span> is what actually gets swapped each cycle.
                     </div>
 
                     <div class="cost-row">
@@ -1062,8 +1076,21 @@
         const amount = parseFloat(document.getElementById('amount').value) || 0;
         const swaps  = parseInt(document.getElementById('swaps').value) || 0;
         const blocks = parseInt(document.getElementById('blocks').value) || 0;
+        const totalDeposit = amount * swaps;
         document.getElementById('totalCost').textContent =
-            (amount * swaps).toLocaleString(undefined, { maximumFractionDigits: 8 });
+            totalDeposit.toLocaleString(undefined, { maximumFractionDigits: 8 });
+
+        // 1% is transferred straight to the admin wallet inside start() and never
+        // returns (dca_service.ride:146); stop() only refunds balance + unused gas.
+        const fee = totalDeposit * 0.01;
+        const fmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 8 });
+        document.getElementById('serviceFee').textContent = fmt(fee);
+        document.getElementById('feeAsset').textContent =
+            document.getElementById('totalAsset').textContent;
+        document.getElementById('netPerSwap').textContent =
+            swaps > 0 && amount > 0
+                ? `${fmt((totalDeposit - fee) / swaps)} ${document.getElementById('totalAsset').textContent} per swap`
+                : '—';
 
         const totalMins = blocks * swaps;
         const durEl = document.getElementById('estDuration');
