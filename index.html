@@ -510,8 +510,8 @@
                             <input type="number" id="swaps" min="1" value="10" required>
                         </div>
                         <div class="field">
-                            <label>Min Output (optional)</label>
-                            <input type="number" id="minOut" step="0.00000001" min="0" placeholder="0 = any">
+                            <label>Min Output (mandatory)</label>
+                            <input type="number" id="minOut" step="0.00000001" min="0.00000001" placeholder="min you'll accept per swap" required>
                             <span class="hint">Slippage protection</span>
                         </div>
                     </div>
@@ -1154,6 +1154,9 @@
         e.preventDefault();
         if (!selectedAsset) { showToast('Select a token from your wallet first', 'danger'); return; }
         if (!routeValid) { showToast('No swap route found for this token pair', 'danger'); return; }
+        // Contract rejects minimumOut <= 0, so enforce it here with a clear message
+        const minOutVal = parseFloat(document.getElementById('minOut').value);
+        if (!minOutVal || minOutVal <= 0) { showToast('Min Output is mandatory — enter the minimum you\'ll accept per swap', 'danger'); return; }
 
         submitBtn.disabled = true;
         submitBtn.textContent = 'Waiting for Keeper…';
