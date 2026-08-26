@@ -737,9 +737,9 @@
                 const display = item.amount < 0.0001
                     ? item.amount.toExponential(2)
                     : item.amount.toLocaleString(undefined, { maximumFractionDigits: 6 });
-                return `<div class="token-item" data-id="${item.id}" data-name="${item.name}" data-amount="${item.amount}" data-decimals="${item.decimals}">
+                return `<div class="token-item" data-id="${item.id}" data-name="${escapeHtml(item.name)}" data-amount="${item.amount}" data-decimals="${item.decimals}">
                     <div class="token-item-left">
-                        <span class="token-item-name">${item.name}</span>
+                        <span class="token-item-name">${escapeHtml(item.name)}</span>
                         <span class="token-item-balance">${display}</span>
                     </div>
                     <div class="token-item-right">
@@ -958,7 +958,7 @@
             div.dataset.name = name;
             div.dataset.amount = amount;
             div.dataset.decimals = decimals;
-            div.innerHTML = `<span class="token-item-name">${name}</span><span class="token-item-balance">${display}</span>`;
+            div.innerHTML = `<span class="token-item-name">${escapeHtml(name)}</span><span class="token-item-balance">${display}</span>`;
             div.addEventListener('click', () => {
                 tokenListEl.querySelectorAll('.token-item').forEach(t => t.classList.remove('selected'));
                 div.classList.add('selected');
@@ -1039,7 +1039,12 @@
         if (!selectedAsset) return;
         const swaps = parseInt(document.getElementById('swaps').value) || 1;
         // Divide available balance evenly across swaps
-        const perSwap = selectedAsset.amount / swaps;
+        // When spending WAVES, reserve the execution gas start() also attaches
+        // (swaps * 0.01 + 0.005, matching the SDK) plus the 0.005 invoke fee -
+        // otherwise MAX builds a transaction the wallet cannot actually pay.
+        let spendable = selectedAsset.amount;
+        if (selectedAsset.id === 'WAVES') spendable = Math.max(0, spendable - (swaps * 0.01 + 0.005) - 0.005);
+        const perSwap = spendable / swaps;
         document.getElementById('amount').value = parseFloat(perSwap.toFixed(selectedAsset.decimals));
         updateTotalCost();
         updateEstimatedOutput();
@@ -1074,12 +1079,14 @@
     }
 
     let estDebounce;
+    let estSeq = 0;   // monotonic guard: a slow earlier quote must never overwrite a newer one
     async function updateEstimatedOutput() {
         clearTimeout(estDebounce);
         estDebounce = setTimeout(_fetchEstimate, 400);
     }
 
     async function _fetchEstimate() {
+        const seq     = ++estSeq;
         const el      = document.getElementById('estimatedOut');
         const amount  = parseFloat(document.getElementById('amount').value) || 0;
         const toAsset = document.getElementById('toAsset').value;
@@ -1096,6 +1103,7 @@
 
         try {
             const toPrecision    = await dca.getAssetPrecision(toAsset);
+            if (seq !== estSeq || !selectedAsset) return;
             const amountAfterFee = amount * (1 - 100 / 10000);
             const amountIn = Math.floor(amountAfterFee * Math.pow(10, selectedAsset.decimals));
 
@@ -1105,6 +1113,7 @@
             );
             if (!resp.ok) throw new Error();
             const data = await resp.json();
+            if (seq !== estSeq) return;
             if (data.error) {
                 const noRoute = typeof data.error === 'string' && data.error.toLowerCase().includes('routes not found');
                 el.textContent = noRoute ? 'No route found for this pair' : 'PuzzleSwap unavailable';
@@ -1130,6 +1139,7 @@
             updateSubmitBtn();
 
         } catch {
+            if (seq !== estSeq) return;
             el.textContent = 'Unable to estimate';
             el.style.color = 'var(--text-dim)';
             routeValid = false;
@@ -1148,8 +1158,16 @@
         if (!selectedAsset) { showToast('Select a token from your wallet first', 'danger'); return; }
         if (!routeValid) { showToast('No swap route found for this token pair', 'danger'); return; }
         // Contract rejects minimumOut <= 0, so enforce it here with a clear message
-        const minOutVal = parseFloat(document.getElementById('minOut').value);
-        if (!minOutVal || minOutVal <= 0) { showToast('Min Output is mandatory — enter the minimum you\'ll accept per swap', 'danger'); return; }
+        // Min Output is a free-text field, so validate the raw string. parseFloat
+        // ("12,345.67") silently returns 12 - that would write an on-chain slippage
+        // floor ~1000x too low. Strip thousands grouping, then require a plain number.
+        const minOutRaw = document.getElementById('minOut').value.trim().replace(/[\s,](?=\d{3}(\D|$))/g, '');
+        if (!/^(\d+(\.\d+)?|\.\d+)$/.test(minOutRaw)) {
+            showToast('Min Output must be a plain number, e.g. 12345.67 (no commas, spaces, or units)', 'danger');
+            return;
+        }
+        const minOutVal = Number(minOutRaw);
+        if (!(minOutVal > 0)) { showToast('Min Output is mandatory — enter the minimum you\'ll accept per swap', 'danger'); return; }
 
         submitBtn.disabled = true;
         submitBtn.textContent = 'Waiting for Keeper…';
@@ -1163,7 +1181,7 @@
                 amount:    parseFloat(document.getElementById('amount').value),
                 blocks:    parseInt(document.getElementById('blocks').value),
                 swaps:     parseInt(document.getElementById('swaps').value),
-                minOut:    parseFloat(document.getElementById('minOut').value) || 0
+                minOut:    minOutVal
             });
 
             showToast('Session started — TX: ' + result.txId.slice(0,12) + '…', 'success');
@@ -1239,11 +1257,13 @@
     function renderSession(s) {
         const isPaused    = s.paused || false;
         const isCompleted = !s.active && s.remaining === 0;
-        const isDeactivated = !s.active && s.remaining > 0;
+        const isDeactivated  = !s.active && s.remaining > 0 && s.resumable !== false;
+        const isStoppedEarly = !s.active && s.remaining > 0 && s.resumable === false;
         const pillClass = isCompleted ? 'pill-stopped' : isDeactivated ? 'pill-paused' : !s.active ? 'pill-stopped' : isPaused ? 'pill-paused' : 'pill-active';
-        const pillText  = isCompleted ? 'Completed' : isDeactivated ? 'Deactivated' : isPaused ? 'Paused' : 'Active';
+        const pillText  = isCompleted ? 'Completed' : isStoppedEarly ? 'Stopped' : isDeactivated ? 'Deactivated' : isPaused ? 'Paused' : 'Active';
         const itemClass = !s.active ? (isDeactivated ? 'paused' : 'stopped') : isPaused ? 'paused' : '';
         const nextText  = isCompleted ? 'All swaps completed'
+                        : isStoppedEarly ? 'Stopped - remaining funds returned to your wallet'
                         : isDeactivated ? 'Deactivated — tap Resume to restart'
                         : isPaused  ? 'Paused — swaps suspended'
                         : `Next swap in ${s.blocksUntilNext} block${s.blocksUntilNext !== 1 ? 's' : ''}`;
@@ -1270,7 +1290,7 @@
                 </div>` : ''}
             </div>
 
-            ${!isCompleted ? `<div class="session-stats">
+            ${!isCompleted && !isStoppedEarly ? `<div class="session-stats">
                 <div class="stat">
                     <span class="stat-label">Per Swap</span>
                     <span class="stat-value">${s.amountPerSwap} ${fromName}</span>

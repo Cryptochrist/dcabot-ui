@@ -81,7 +81,7 @@ class DCAService {
      * Get asset precision (decimals)
      */
     async getAssetPrecision(assetId) {
-        if (this.precisionCache[assetId]) {
+        if (this.precisionCache[assetId] !== undefined) {   // 0 is a valid precision
             return this.precisionCache[assetId];
         }
 
@@ -92,7 +92,7 @@ class DCAService {
         try {
             const response = await fetch(`${this.nodeUrl}/assets/details/${assetId}`);
             const data = await response.json();
-            const precision = data.decimals || 8;
+            const precision = Number.isInteger(data.decimals) ? data.decimals : 8;
 
             this.precisionCache[assetId] = precision;
             return precision;
@@ -396,6 +396,9 @@ class DCAService {
             const lastBlock      = sessionData.lastBlock || 0;
             const remaining      = sessionData.remaining || 0;
             const total          = sessionData.total || 0;
+            // A stopped/auto-completed session has amount_ and balance_ deleted on-chain
+            // and its funds already refunded, so resumeSession() now rejects it.
+            const paramsIntact   = sessionData.amountPerSwap !== undefined && sessionData.balance !== undefined;
             const balance        = sessionData.balance || 0;
             const minOut         = sessionData.minOut || 0;
             const amountPerSwap  = sessionData.amountPerSwap || 0;
@@ -429,6 +432,7 @@ class DCAService {
                 blocksUntilNext: blocksUntilNext,
                 currentHeight: currentHeight,
                 paused: sessionData.paused || false,
+                resumable: paramsIntact,
                 totalReceived: toPrecision > 0 ? (sessionData.totalReceived || 0) / Math.pow(10, toPrecision) : (sessionData.totalReceived || 0)
             };
 
