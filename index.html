@@ -492,7 +492,15 @@
                                 <option value="A81p1LTRyoq2rDR2TNxB2dWYxsiNwCSSi8sXef2SEkwb">USDT-BSC-PPT</option>
                                 <option value="XjdJKWtPYCz585QB7LnxDP76UGRukazedDubUx9DHQH">PZ-WEB-LP</option>
                                 <option value="bPWkA3MNyEr1TuDchWgdpqJZhGhfPXj7dJdr3qiW2kD">TN</option>
+                                <option value="5JQ8yUY4vnB19s4bXSGVYsNEyA9Bag6jbMtVEgFHvYM7">PESOLATINO</option>
                             </select>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <input type="text" id="customTargetInput" spellcheck="false"
+                                    placeholder="…or paste an asset ID to add your own"
+                                    style="flex:1; min-width:0; padding:8px 10px; background:#1c2230; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; font-family:monospace;" />
+                                <button type="button" class="btn btn-ghost btn-sm" id="addCustomTargetBtn" style="white-space:nowrap;">Verify &amp; add</button>
+                            </div>
+                            <div id="customTargetStatus" class="fee-note" style="margin:6px 0 0;"></div>
                         </div>
                     </div>
 
@@ -628,6 +636,7 @@
     document.querySelectorAll('#toAsset option').forEach(opt => {
         if (opt.value) assetNameMap[opt.value] = opt.textContent;
     });
+    loadCustomTargets();
 
     // ── Connect ───────────────────────────────────────────────
     connectBtn.addEventListener('click', async () => {
@@ -992,6 +1001,99 @@
             btn.textContent = 'Add';
         }
     }
+
+    // -- User-added target ("Into") tokens ---------------------
+    // Anyone can paste an asset ID, but it is only accepted after we verify
+    // on-chain that it exists AND that PuzzleSwap can both buy it and sell it
+    // back -- otherwise a DCA could route funds into a token with no exit.
+    // Accepted tokens persist per-browser in localStorage.
+    const CUSTOM_TARGETS_KEY = 'dca_custom_targets_v1';
+
+    function readCustomTargets() {
+        try { return JSON.parse(localStorage.getItem(CUSTOM_TARGETS_KEY)) || []; }
+        catch (e) { return []; }
+    }
+    function writeCustomTargets(list) {
+        try { localStorage.setItem(CUSTOM_TARGETS_KEY, JSON.stringify(list)); } catch (e) {}
+    }
+    function addTargetOption(id, name, select) {
+        const sel = document.getElementById('toAsset');
+        if (sel.querySelector('option[value="' + id + '"]')) return false;
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = name;
+        opt.dataset.custom = '1';
+        sel.appendChild(opt);
+        assetNameMap[id] = name;
+        if (select) { sel.value = id; updateEstimatedOutput(); }
+        return true;
+    }
+    function loadCustomTargets() {
+        readCustomTargets().forEach(t => { if (t && t.id && t.name) addTargetOption(t.id, t.name, false); });
+    }
+
+    async function pzQuote(t0, t1, amountIn) {
+        const r = await fetch(
+            `https://swapapi.puzzleswap.org/aggregator/calc?token0=${t0}&token1=${t1}&amountIn=${amountIn}`,
+            { headers: { 'Referer': 'https://puzzleswap.org/', 'Origin': 'https://puzzleswap.org' } });
+        if (!r.ok) return 0;
+        const d = await r.json();
+        if (d.error && String(d.error).length) return 0;   // note: a success returns error:""
+        return d.estimatedOut || d.cleanOut || 0;
+    }
+
+    async function verifyAndAddTarget() {
+        const input  = document.getElementById('customTargetInput');
+        const btn    = document.getElementById('addCustomTargetBtn');
+        const status = document.getElementById('customTargetStatus');
+        const say = (m, c) => { status.textContent = m; status.style.color = c || 'var(--text-dim)'; };
+        const id = input.value.trim();
+        if (!id) return;
+        if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(id)) { say('That does not look like a Waves asset ID.', 'var(--red)'); return; }
+        if (document.querySelector('#toAsset option[value="' + id + '"]')) { say('That token is already in the list.', 'var(--yellow)'); return; }
+
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = '...';
+        try {
+            say('Checking the asset exists...');
+            const resp = await fetch(`${dca.nodeUrl}/assets/details/${id}`);
+            const det  = resp.ok ? await resp.json() : null;
+            if (!det || !det.assetId) throw new Error('No such asset on Waves mainnet.');
+            const name = (det.name || id.slice(0, 8)).trim();
+            const dec  = Number.isInteger(det.decimals) ? det.decimals : 8;
+
+            say(`Found ${name}. Checking PuzzleSwap can buy it...`);
+            const probe = 1e8;                       // 1 WAVES
+            const got = await pzQuote('WAVES', id, probe);
+            if (!got) throw new Error(`${name} has no PuzzleSwap route - it cannot be swapped into.`);
+
+            say('Route found. Checking you could sell it again...');
+            const back = await pzQuote(id, 'WAVES', got);
+            if (!back) throw new Error(`${name} can be bought but not sold on PuzzleSwap - not added, you could get stuck holding it.`);
+
+            const loss = Math.max(0, (1 - back / probe) * 100);
+            addTargetOption(id, name, true);
+            const list = readCustomTargets();
+            list.push({ id: id, name: name });
+            writeCustomTargets(list);
+            input.value = '';
+
+            if (loss > 5) {
+                say(`Added ${name} (${dec} dp). Warning: thin liquidity - a 1 WAVES round trip loses ${loss.toFixed(1)}%. Keep per-swap amounts small.`, 'var(--yellow)');
+            } else {
+                say(`Added ${name} (${dec} dp) - buy and sell routes verified, round-trip cost ${loss.toFixed(2)}%.`, 'var(--green)');
+            }
+        } catch (e) {
+            say(e.message || 'Could not verify that asset.', 'var(--red)');
+        } finally {
+            btn.disabled = false; btn.textContent = orig;
+        }
+    }
+
+    document.getElementById('addCustomTargetBtn').addEventListener('click', verifyAndAddTarget);
+    document.getElementById('customTargetInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); verifyAndAddTarget(); }
+    });
 
     document.getElementById('addCustomAssetBtn').addEventListener('click', addCustomAsset);
     document.getElementById('customAssetInput').addEventListener('keypress', (e) => {
